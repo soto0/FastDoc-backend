@@ -1,0 +1,73 @@
+image: node:latest
+
+stages:
+    - install
+    - format
+    - test
+    - build
+
+cache:
+    key:
+        files:
+            - package-lock.json
+    paths:
+        - node_modules/
+        - .vite/
+        - .npm/
+
+workflow:
+    rules:
+        - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+        - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+        - if: $CI_PIPELINE_SOURCE == "web"
+        - if: $CI_PIPELINE_SOURCE == "schedule"
+        - when: never
+
+.base-job:
+    rules:
+        - if: $CI_COMMIT_BRANCH == "main"
+        - if: $CI_COMMIT_BRANCH == "develop"
+        - if: $CI_COMMIT_MERGE_REQUEST_ID
+
+install:
+    stage: install
+    script:
+        - echo "[INSTALL]"
+        - npm ci --prefer-offline --ignore-scripts
+    artifacts:
+        paths:
+            - node_modules/
+        expire_in: 1 hour
+
+format:
+    extends: .base-job
+    stage: format
+    variables:
+        NODE_ENV: development
+    script:
+        - echo "[FORMAT]"
+        - npm run format
+        - npm run lint
+        - npm run type-check
+
+test:
+    extends: .base-job
+    stage: test
+    variables:
+        NODE_ENV: test
+    script:
+        - echo "[TEST]"
+        - npm run test
+
+build:
+    extends: .base-job
+    stage: build
+    variables:
+        NODE_ENV: production
+    script:
+        - echo "[BUILD]"
+        - npm run build
+    artifacts:
+        paths:
+            - dist/
+        expire_in: 1 hour
