@@ -37,6 +37,10 @@ install:
     script:
         - echo "[INSTALL]"
         - npm ci --prefer-offline --ignore-scripts
+    artifacts:
+        paths:
+            - node_modules/
+        expire_in: 1 hour
 
 format:
     extends: .base-job
