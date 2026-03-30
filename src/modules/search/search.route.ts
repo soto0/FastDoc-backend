@@ -6,10 +6,8 @@ const searchRoute = new Hono();
 
 searchRoute.post(
     '/',
-    zValidator('json', searchSchema, (result, c) => {
-        if (!result.success) {
-            return c.json({ error: 'Заполните поле!', success: false }, 400);
-        }
+    zValidator('json', searchSchema, (result) => {
+        if (!result.success) throw result.error;
     }),
     (c) => {
         return c.json({ answer: 'Мы работаем над этим', success: true });

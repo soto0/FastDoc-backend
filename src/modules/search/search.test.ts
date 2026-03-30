@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import app from '../../app';
+import { expectError } from '../../utils/test-helpers';
 
 describe('search endpoint', () => {
     it('should return search result', async () => {
@@ -13,14 +14,13 @@ describe('search endpoint', () => {
         expect(await res.json()).toEqual({ answer: 'Мы работаем над этим', success: true });
     });
 
-    it('if should validation failed', async () => {
-        const res = await app.request('api/search', {
+    it('should return 400 when query is too short or empty', async () => {
+        const res = await app.request('/api/search', {
             method: 'POST',
-            body: JSON.stringify({ query: '' }),
+            body: JSON.stringify({ query: 'ab' }),
             headers: new Headers({ 'Content-Type': 'application/json' })
         });
 
-        expect(res.status).toBe(400);
-        expect(await res.json()).toEqual({ error: 'Заполните поле!', success: false });
+        await expectError(res, 400, 'Минимум 3 символа');
     });
 });
