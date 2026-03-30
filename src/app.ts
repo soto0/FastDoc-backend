@@ -1,10 +1,11 @@
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { Scalar } from '@scalar/hono-api-reference';
 import { logger } from 'hono/logger';
 import { poweredBy } from 'hono/powered-by';
 import { errorHandler } from './middleware/error-handler.ts';
 import searchRoute from './modules/search/search.route.ts';
 
-const app = new Hono();
+const app = new OpenAPIHono();
 
 app.use(poweredBy());
 app.use(logger());
@@ -13,6 +14,13 @@ app.onError(errorHandler);
 const api = app.basePath('/api');
 
 api.route('/search', searchRoute);
+
+api.doc('/documentation', {
+    openapi: '3.0.0',
+    info: { title: 'FastDoc API', version: '1.0.0', description: 'API для FastDoc' }
+});
+
+api.get('/doc', Scalar({ url: '/api/documentation', theme: 'alternate' }));
 
 export type AppType = typeof app;
 export default app;
