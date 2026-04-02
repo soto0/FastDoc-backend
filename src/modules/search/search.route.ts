@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { validationHandler } from '../../utils/validation-handler.ts';
 import { searchSchema } from './search.schema';
+import { searchService } from './search.service.ts';
 
 const searchRoute = new OpenAPIHono({ defaultHook: validationHandler });
 
@@ -20,8 +21,11 @@ searchRoute.openapi(
             400: { description: 'Ошибка валидации' }
         }
     }),
-    (c) => {
-        return c.json({ answer: 'Мы работаем над этим', success: true });
+    async (c) => {
+        const query = c.req.valid('json').query;
+        const response = await searchService(query);
+
+        return c.json({ answer: response.choices[0]?.message.content ?? '', success: true });
     }
 );
 

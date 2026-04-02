@@ -1,5 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
+
 import { logger } from 'hono/logger';
 import { poweredBy } from 'hono/powered-by';
 import { errorHandler } from './middleware/error-handler.ts';
