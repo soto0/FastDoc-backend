@@ -22,8 +22,6 @@ workflow:
         - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
         - when: never
 
-.base-job:
-
 install:
     stage: install
     script:
@@ -35,7 +33,6 @@ install:
         expire_in: 1 hour
 
 format:
-    extends: .base-job
     stage: format
     variables:
         NODE_ENV: development
@@ -46,7 +43,6 @@ format:
         - npm run type-check
 
 test:
-    extends: .base-job
     stage: test
     variables:
         NODE_ENV: test
@@ -55,7 +51,6 @@ test:
         - npm run test
 
 build:
-    extends: .base-job
     stage: build
     variables:
         NODE_ENV: production
