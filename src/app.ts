@@ -1,6 +1,7 @@
+import process from 'node:process';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
-
+import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { poweredBy } from 'hono/powered-by';
 import { errorHandler } from './middleware/error-handler.ts';
@@ -10,6 +11,13 @@ const app = new OpenAPIHono();
 
 app.use(poweredBy());
 app.use(logger());
+app.use(
+    cors({
+        origin: [process.env.FRONTEND_URL ?? 'http://localhost:5173'],
+        allowHeaders: ['Content-Type'],
+        allowMethods: ['GET', 'POST', 'OPTIONS']
+    })
+);
 app.onError(errorHandler);
 
 const api = app.basePath('/api');
