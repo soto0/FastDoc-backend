@@ -1,7 +1,7 @@
 import process from 'node:process';
 import { serve } from '@hono/node-server';
 import app from './app.ts';
-import { loadEnv } from './config/load-env.ts';
+import { loadEnv } from './config/loadEnv.ts';
 
 loadEnv();
 
