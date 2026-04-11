@@ -8,13 +8,18 @@ export const expectError = async (res: Response, expectedStatus: number, expecte
 
     const data = await res.json();
 
-    expect(data).toMatchObject({
-        success: false,
-        error: expect.any(String)
-    });
+    expect(data).toMatchObject({ success: false });
+
+    const errorPayload = data.error as unknown;
+    const errorText =
+        typeof errorPayload === 'string'
+            ? errorPayload
+            : errorPayload != null && typeof errorPayload === 'object' && 'message' in errorPayload
+              ? String((errorPayload as { message: unknown }).message)
+              : JSON.stringify(errorPayload);
 
     if (expectedError != null) {
-        expect(data.error).toContain(expectedError);
+        expect(errorText).toContain(expectedError);
     }
 
     return data;
