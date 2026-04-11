@@ -1,17 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
-import app from '../../app';
-import * as groqService from '../../services/groq/generateAIResponse.service';
-import { AppError } from '../../utils/appError';
-import { expectError } from '../../utils/test-helpers';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import app from '@/app';
+import * as groqService from '@/services/groq/generateAIResponse.service';
+import { AppError } from '@/utils/appError';
+import { expectError } from '@/utils/testHelper';
 
-const mockChatCompletion = {
+const groqCompletion = (content: string) => ({
     id: 'mock-id',
     object: 'chat.completion',
     created: Date.now(),
     model: 'llama-3.3-70b-versatile',
-    choices: [{ index: 0, message: { role: 'assistant', content: 'Mocked answer' }, finish_reason: 'stop', logprobs: null }],
+    choices: [{ index: 0, message: { role: 'assistant' as const, content }, finish_reason: 'stop', logprobs: null }],
     usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
-};
+});
 
 const request = async (query: string) => {
     return app.request('/api/search', {
@@ -21,14 +21,48 @@ const request = async (query: string) => {
     });
 };
 
+afterEach(() => {
+    vi.restoreAllMocks();
+});
+
 describe('search endpoint', () => {
-    it('should return search result', async () => {
-        vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(mockChatCompletion as never);
+    it('should return parsed library and version', async () => {
+        vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(
+            groqCompletion(JSON.stringify({ library: 'react', version: '18.0.0' })) as never
+        );
 
         const res = await request('test search');
         expect(res.status).toBe(200);
-        // eslint-disable-next-line ts/no-unsafe-assignment
-        expect(await res.json()).toEqual({ answer: expect.any(String), success: true });
+        await expect(res.json()).resolves.toEqual({
+            answer: { library: 'react', version: '18.0.0' },
+            success: true
+        });
+    });
+
+    it('should resolve latest npm version when model returns null version', async () => {
+        vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(
+            groqCompletion(JSON.stringify({ library: 'lodash', version: null })) as never
+        );
+        vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({ 'dist-tags': { latest: '4.17.21' } })
+        } as Response);
+
+        const res = await request('lodash docs');
+        expect(res.status).toBe(200);
+        await expect(res.json()).resolves.toEqual({
+            answer: { library: 'lodash', version: '4.17.21' },
+            success: true
+        });
+    });
+
+    it('should return null answer when model output is not valid JSON', async () => {
+        vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(groqCompletion('plain text') as never);
+
+        const res = await request('test search');
+        expect(res.status).toBe(200);
+        await expect(res.json()).resolves.toEqual({ answer: null, success: true });
     });
 
     it('should return 400 when query is too short or empty', async () => {

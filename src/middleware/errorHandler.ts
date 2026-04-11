@@ -1,6 +1,6 @@
 import type { ErrorHandler } from 'hono';
 import { ZodError } from 'zod';
-import { AppError } from '../utils/appError';
+import { AppError } from '@/utils/appError';
 
 export const errorHandler: ErrorHandler = (err, c) => {
     if (err instanceof ZodError) {

@@ -1,7 +1,6 @@
-import type { ChatCompletion } from 'groq-sdk/resources/chat.mjs';
-import { generateAIResponse } from '../../services/groq/generateAIResponse.service';
+import { parseSearch } from '@/services/groq/parseSearch.sevice';
 
-export const searchService = async (query: string): Promise<ChatCompletion> => {
-    const response = await generateAIResponse(query);
+export const searchService = async (query: string) => {
+    const response = await parseSearch(query);
     return response;
 };

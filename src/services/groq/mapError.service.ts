@@ -1,5 +1,5 @@
 import { APIConnectionError, APIError } from 'groq-sdk';
-import { AppError } from '../../utils/appError';
+import { AppError } from '@/utils/appError';
 
 export const mapGroqError = (error: unknown): never => {
     if (error instanceof APIConnectionError) {
