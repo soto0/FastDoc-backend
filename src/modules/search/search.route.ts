@@ -1,14 +1,8 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { validationHandler } from '../../utils/validation-handler.ts';
-import { searchSchema } from './search.schema';
-import { searchService } from './search.service.ts';
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
+import { searchResponse, searchSchema } from '@/modules/search/search.schema';
+import { searchService } from '@/modules/search/search.service';
 
-const searchRoute = new OpenAPIHono({ defaultHook: validationHandler });
-
-const searchResponse = z.object({
-    answer: z.string(),
-    success: z.boolean()
-});
+const searchRoute = new OpenAPIHono();
 
 searchRoute.openapi(
     createRoute({
@@ -25,7 +19,7 @@ searchRoute.openapi(
         const query = c.req.valid('json').query;
         const response = await searchService(query);
 
-        return c.json({ answer: response.choices[0]?.message.content ?? '', success: true });
+        return c.json({ answer: response, success: true });
     }
 );
 

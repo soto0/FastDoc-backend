@@ -6,3 +6,8 @@ export const searchSchema = z.object({
         example: 'test search'
     })
 });
+
+export const searchResponse = z.object({
+    answer: z.string(),
+    success: z.boolean()
+});

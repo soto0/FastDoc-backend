@@ -1,18 +1,31 @@
 import type { ChatCompletion, ChatCompletionCreateParams } from 'groq-sdk/resources/chat/completions.mjs';
-import { groqClient } from '../../config/groq';
-import { GROQ_MODEL, SYSTEM_PROMPT } from '../../constants/groq';
-import { mapGroqError } from './mapError.service';
+import { groqClient } from '@/config/groq';
+import { EASY_GROQ_MODEL, HARD_GROQ_MODEL } from '@/constants/groq';
+import { mapGroqError } from '@/services/groq/mapError.service';
 
-export const generateAIResponse = async (prompt: string): Promise<ChatCompletion> => {
+interface GenerateAIResponseParams {
+    systemPrompt: string;
+    prompt: string;
+    model: 'easy' | 'hard';
+}
+
+const modelMap: Record<GenerateAIResponseParams['model'], string> = {
+    easy: EASY_GROQ_MODEL,
+    hard: HARD_GROQ_MODEL
+};
+
+export const generateAIResponse = async ({ systemPrompt, prompt, model }: GenerateAIResponseParams): Promise<ChatCompletion> => {
     const params: ChatCompletionCreateParams = {
         messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt }
         ],
-        model: GROQ_MODEL
+        model: modelMap[model]
     };
 
-    return groqClient()
-        .chat.completions.create(params)
-        .catch((error) => mapGroqError(error));
+    try {
+        return await groqClient().chat.completions.create(params);
+    } catch (error) {
+        throw mapGroqError(error);
+    }
 };
