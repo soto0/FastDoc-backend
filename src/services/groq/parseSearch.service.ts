@@ -1,10 +1,11 @@
 import { PARSE_SEARCH_PROMPT } from '@/constants/groq';
 import { generateAIResponse } from '@/services/groq/generateAIResponse.service';
-import { getLatestLibraryVersion } from '../npmRegistry/getLatestLibraryVersion.service';
+import { getNpmLibraryMetadata } from '../npmRegistry/getNpmLibraryMetadata';
 
 interface IParsedSearch {
     library: string;
-    version: string | null;
+    version: string;
+    repository: string;
 }
 
 export const parseSearch = async (query: string): Promise<IParsedSearch | null> => {
@@ -17,12 +18,8 @@ export const parseSearch = async (query: string): Promise<IParsedSearch | null> 
         const parsedContent = JSON.parse(content) as IParsedSearch;
         if (!parsedContent.library) return null;
 
-        if (parsedContent.version == null) {
-            const { version } = await getLatestLibraryVersion(parsedContent.library);
-            parsedContent.version = version;
-        }
-
-        return parsedContent;
+        const { version, repository } = await getNpmLibraryMetadata({ library: parsedContent.library, version: parsedContent.version });
+        return { ...parsedContent, version, repository };
     } catch {
         return null;
     }

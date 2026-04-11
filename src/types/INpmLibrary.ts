@@ -1,3 +1,4 @@
 export interface INpmLibrary {
-    'dist-tags': { latest: string };
+    version: string;
+    repository: { url: string };
 }

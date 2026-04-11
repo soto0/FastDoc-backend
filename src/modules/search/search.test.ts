@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '@/app';
 import * as groqService from '@/services/groq/generateAIResponse.service';
+import * as npmRegistry from '@/services/npmRegistry/getNpmLibraryMetadata';
 import { AppError } from '@/utils/appError';
 import { expectError } from '@/utils/testHelper';
 
@@ -26,33 +27,44 @@ afterEach(() => {
 });
 
 describe('search endpoint', () => {
-    it('should return parsed library and version', async () => {
+    it('should return parsed library, version and repository', async () => {
         vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(
             groqCompletion(JSON.stringify({ library: 'react', version: '18.0.0' })) as never
         );
+        vi.spyOn(npmRegistry, 'getNpmLibraryMetadata').mockResolvedValueOnce({
+            version: '18.0.0',
+            repository: 'facebook/react'
+        });
 
         const res = await request('test search');
         expect(res.status).toBe(200);
         await expect(res.json()).resolves.toEqual({
-            answer: { library: 'react', version: '18.0.0' },
+            answer: {
+                library: 'react',
+                version: '18.0.0',
+                repository: 'facebook/react'
+            },
             success: true
         });
     });
 
-    it('should resolve latest npm version when model returns null version', async () => {
+    it('should resolve metadata when model returns null version', async () => {
         vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(
             groqCompletion(JSON.stringify({ library: 'lodash', version: null })) as never
         );
-        vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            json: async () => ({ 'dist-tags': { latest: '4.17.21' } })
-        } as Response);
+        vi.spyOn(npmRegistry, 'getNpmLibraryMetadata').mockResolvedValueOnce({
+            version: '4.17.21',
+            repository: 'lodash/lodash'
+        });
 
         const res = await request('lodash docs');
         expect(res.status).toBe(200);
         await expect(res.json()).resolves.toEqual({
-            answer: { library: 'lodash', version: '4.17.21' },
+            answer: {
+                library: 'lodash',
+                version: '4.17.21',
+                repository: 'lodash/lodash'
+            },
             success: true
         });
     });
