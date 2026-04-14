@@ -1,6 +1,6 @@
 import type { INpmLibrary } from '@/types/INpmLibrary';
 import { AppError } from '@/utils/appError';
-import { resolveRepositoryURL } from '@/utils/resolveRepository';
+import { resolveRepository } from '@/utils/resolveRepository';
 
 interface INpmLibraryMetadataParams {
     library: string;
@@ -9,7 +9,8 @@ interface INpmLibraryMetadataParams {
 
 interface INpmLibraryMetadata {
     version: string;
-    repository: string;
+    repo: string;
+    owner: string;
 }
 
 export const getNpmLibraryMetadata = async ({ library, version }: INpmLibraryMetadataParams): Promise<INpmLibraryMetadata> => {
@@ -25,5 +26,5 @@ export const getNpmLibraryMetadata = async ({ library, version }: INpmLibraryMet
 
     const data = (await response.json()) as INpmLibrary;
 
-    return { version: data.version, repository: resolveRepositoryURL(data.repository) };
+    return { version: data.version, ...resolveRepository(data.repository) };
 };

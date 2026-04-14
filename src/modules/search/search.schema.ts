@@ -8,6 +8,6 @@ export const searchSchema = z.object({
 });
 
 export const searchResponse = z.object({
-    answer: z.string(),
+    changelog: z.string(),
     success: z.boolean()
 });

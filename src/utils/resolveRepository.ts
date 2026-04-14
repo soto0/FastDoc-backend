@@ -3,11 +3,19 @@ import { AppError } from './appError';
 
 const GITHUB_REPO_URL_REGEX = /^git\+|\.git$/gi;
 
-export const resolveRepositoryURL = (repository: INpmLibrary['repository']): string => {
-    if (repository == null) {
+interface IResolveRepository {
+    owner: string;
+    repo: string;
+}
+
+export const resolveRepository = (repository: INpmLibrary['repository']): IResolveRepository => {
+    if (repository == null || repository.url == null) {
         throw new AppError(400, 'Не удалось получить репозиторий', 'RESOLVE_REPOSITORY_ERROR');
     }
 
     const url = repository.url.replace(GITHUB_REPO_URL_REGEX, '');
-    return new URL(url).pathname.split('/').slice(1, 3).join('/');
+    const { pathname } = new URL(url);
+
+    const [owner, repo] = pathname.split('/').slice(1);
+    return { owner, repo };
 };
