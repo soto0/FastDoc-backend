@@ -1,103 +1,261 @@
-# backend
+# FastDoc
 
-## Getting started
+**FastDoc** — backend-сервис, который по свободному текстовому запросу находит npm-пакет, подтягивает текст релиза с GitHub и возвращает **отформатированный changelog** в Markdown с помощью LLM (Groq).
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-- [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/fastdoc/backend.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [Set up project integrations](https://gitlab.com/fastdoc/backend/-/settings/integrations)
-
-## Collaborate with your team
-
-- [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-- [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-- [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-- [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-- [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-- [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-- [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-- [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-- [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+Ценность: не нужно вручную искать репозиторий, тег релиза и читать сырой текст GitHub Release — достаточно описать запрос на естественном языке (например: «что нового в next 15»).
 
 ---
 
-# Editing this README
+## Содержание
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- [Возможности](#возможности)
+- [Архитектура](#архитектура)
+- [Поток обработки запроса](#поток-обработки-запроса)
+- [Технологический стек](#технологический-стек)
+- [Структура репозитория](#структура-репозитория)
+- [API](#api)
+- [Переменные окружения](#переменные-окружения)
+- [Локальный запуск](#локальный-запуск)
+- [Сборка и продакшен](#сборка-и-продакшен)
+- [Тестирование](#тестирование)
+- [CI/CD](#cicd)
+- [Ограничения и замечания](#ограничения-и-замечания)
+- [Связанные репозитории](#связанные-репозитории)
 
-## Suggestions for a good README
+---
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Возможности
 
-## Name
 
-Choose a self-explaining name for your project.
+| Возможность          | Описание                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **NL → npm**         | Модель Groq извлекает каноническое имя пакета и версию из текста (с правилами для React, Next, Vue, scoped-пакетов и т.д.). |
+| **npm Registry**     | Уточнение версии и получение URL репозитория через официальный registry (`registry.npmjs.org`).                             |
+| **GitHub Releases**  | Загрузка тела релиза по API Octokit; попытка тега `v{version}`, затем без префикса `v`.                                     |
+| **Форматирование**   | Вторая LLM-стадия приводит changelog к структурированному Markdown и добавляет ссылку на release.                           |
+| **OpenAPI + Scalar** | Спецификация и интерактивная документация из коробки.                                                                       |
 
-## Description
 
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+---
 
-## Badges
+## Архитектура
 
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Логически сервис — тонкий HTTP-слой (Hono) над оркестрацией: **Groq** (парсинг запроса и форматирование) + **npm** (метаданные) + **GitHub** (текст релиза).
 
-## Visuals
+```mermaid
+flowchart LR
+    subgraph Client["Клиент"]
+        FE["Браузер / фронтенд"]
+    end
 
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+    subgraph API["FastDoc API — Hono"]
+        R["POST /api/search"]
+        O["OpenAPI + Scalar\n/api/documentation, /api/doc"]
+    end
 
-## Installation
+    subgraph Core["Доменная логика"]
+        PS["parseSearch\n(Groq easy)"]
+        NPM["getNpmLibraryMetadata"]
+        GR["getRelease → fetchRelease"]
+        FC["formatChangelog\n(Groq hard)"]
+    end
 
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+    subgraph External["Внешние системы"]
+        GROQ["Groq API"]
+        REG["npm registry"]
+        GH["GitHub API\n(Octokit)"]
+    end
 
-## Usage
+    FE --> R
+    R --> PS --> GROQ
+    PS --> NPM --> REG
+    NPM --> GR --> GH
+    GR --> FC --> GROQ
+    FC --> R --> FE
+    O -.-> R
+```
 
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
 
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+**Модели Groq** (см. `src/constants/groq.ts`):
 
-## Roadmap
+- **easy** — `llama-3.1-8b-instant`: быстрый разбор запроса в JSON с полями библиотеки и версии.
+- **hard** — `llama-3.3-70b-versatile`: форматирование длинного текста релиза (до 8000 символов на вход в промпт).
 
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+---
 
-## Contributing
+## Поток обработки запроса
 
-State if you are open to contributions and what your requirements are for accepting them.
+```mermaid
+sequenceDiagram
+    participant C as Клиент
+    participant A as FastDoc
+    participant Q as Groq
+    participant N as npm registry
+    participant G as GitHub
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+    C->>A: POST /api/search { query }
+    A->>Q: parseSearch (system + user query)
+    Q-->>A: JSON { library, version }
+    A->>N: GET /{package}/{version|latest}
+    N-->>A: version + repository.url
+    A->>A: resolveRepository → owner, repo
+    A->>G: GET release by tag vX / X
+    G-->>A: release body
+    A->>Q: formatChangelog (raw body)
+    Q-->>A: markdown
+    A-->>C: { changelog, success: true }
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
 
-## Authors and acknowledgment
 
-Show your appreciation to those who have contributed to the project.
+**Обработка ошибок:** `AppError` и ошибки валидации Zod проходят через `errorHandler`; ошибки Groq маппятся в HTTP-коды (`mapGroqError`).
 
-## License
+---
 
-For open source projects, say how it is licensed.
+## Технологический стек
 
-## Project status
 
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+| Категория       | Выбор                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Runtime         | Node.js (ESM, `type: "module"`)                                                                                      |
+| HTTP            | [Hono](https://hono.dev/) 4.x                                                                                        |
+| OpenAPI         | [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) + [Zod](https://zod.dev/) 4 |
+| Документация UI | [Scalar](https://scalar.com/) для `/api/doc`                                                                         |
+| LLM             | [Groq SDK](https://console.groq.com/)                                                                                |
+| GitHub          | [Octokit](https://github.com/octokit/octokit.js)                                                                     |
+| Сборка          | [tsup](https://tsup.egoist.dev/) → один ESM-бандл `dist/index.js`                                                    |
+| Dev             | `tsx watch`                                                                                                          |
+| Тесты           | [Vitest](https://vitest.dev/) 4                                                                                      |
+| Качество кода   | ESLint (@antfu/eslint-config), Prettier, `tsc --noEmit`                                                              |
+
+
+---
+
+## Структура репозитория
+
+```
+backend/
+├── src/
+│   ├── index.ts              # Точка входа: loadEnv, serve(Hono)
+│   ├── app.ts                # CORS, логирование, маршруты /api, OpenAPI, Scalar
+│   ├── config/               # loadEnv, groqClient, github Octokit
+│   ├── constants/groq.ts     # Модели и системные промпты
+│   ├── middleware/errorHandler.ts
+│   ├── modules/search/       # route, service, zod-схемы
+│   ├── services/
+│   │   ├── getChangelog.service.ts   # Склейка всего пайплайна
+│   │   ├── github/getRelease.service.ts
+│   │   ├── npmRegistry/getNpmLibraryMetadata.ts
+│   │   └── groq/             # generateAI, parseSearch, formatChangelog, mapError
+│   ├── types/INpmLibrary.ts
+│   └── utils/                # fetchRelease, resolveRepository, AppError
+├── tests/                    # Модульные и интеграционные (endpoint) тесты
+├── tsup.config.ts
+├── vitest.config.ts
+├── tsconfig.json
+├── .env.example
+└── .gitlab-ci.yml
+```
+
+Псевдоним импортов: `@/*` → `src/*`, `@tests/*` → `tests/*`.
+
+---
+
+## API
+
+
+| Метод и путь             | Описание                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `POST /api/search`       | Тело: `{ "query": string }` (минимум 3 символа). Ответ: `{ "changelog": string, "success": true }`. |
+| `GET /api/documentation` | OpenAPI 3.0 JSON.                                                                                   |
+| `GET /api/doc`           | Scalar UI (тема `alternate`), ссылается на `/api/documentation`.                                    |
+
+
+**Пример запроса:**
+
+```bash
+curl -s -X POST http://localhost:3000/api/search \
+  -H "Content-Type: application/json" \
+  -d '{"query":"что нового в react 18"}'
+```
+
+CORS по умолчанию разрешает origin из `FRONTEND_URL` или `http://localhost:5173`.
+
+---
+
+## Переменные окружения
+
+Скопируйте `.env.example` в `.env` или `.env.development` (оба пути читает `loadEnv`).
+
+
+| Переменная     | Назначение                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `PORT`         | Порт HTTP-сервера (по умолчанию `3000`).                                                                      |
+| `FRONTEND_URL` | Origin для CORS (по умолчанию `http://localhost:5173`).                                                       |
+| `GROQ_API_KEY` | Ключ API Groq (**обязателен** для рабочего пайплайна).                                                        |
+| `GITHUB_TOKEN` | Токен GitHub для Octokit (рекомендуется: выше лимиты API, доступ к приватным репозиториям при необходимости). |
+
+
+---
+
+## Локальный запуск
+
+```bash
+npm ci
+cp .env.example .env
+# Заполните GROQ_API_KEY и при необходимости GITHUB_TOKEN
+
+npm run dev
+```
+
+Сервер слушает `PORT` (см. выше). Документация: `http://localhost:3000/api/doc`.
+
+---
+
+## Сборка и продакшен
+
+```bash
+npm run build    # tsup → dist/
+npm run start    # node dist/index.js
+```
+
+Убедитесь, что переменные окружения заданы в среде выполнения (контейнер, systemd, PaaS).
+
+---
+
+## Тестирование
+
+```bash
+npm run test        # Vitest
+npm run type-check  # tsc --noEmit
+npm run lint        # ESLint
+npm run format      # Prettier
+```
+
+Тесты покрывают утилиты (`fetchRelease`, `resolveRepository`), сервисы (changelog, npm, GitHub, Groq-форматирование) и HTTP-слой `POST /api/search` с моками внешних вызовов.
+
+---
+
+## CI/CD
+
+В **GitLab CI** (`.gitlab-ci.yml`) для веток `main`/`develop` и соответствующих MR:
+
+1. **install** — `npm ci`
+2. **format** — `format`, `lint`, `type-check`
+3. **test** — `npm run test`
+4. **build** — артефакт `dist/`
+
+Кэшируются `node_modules/` и связанные пути npm/vite.
+
+---
+
+## Ограничения и замечания
+
+- **Только npm и GitHub:** репозиторий берётся из поля `repository` метаданных пакета; если ссылка не GitHub или отсутствует — разрешение `owner/repo` не сработает.
+- **Релиз по тегу:** используется endpoint релизов по тегу (`v{version}` или `{version}`); если релиза с таким тегом нет, получение changelog завершится ошибкой на уровне приложения.
+- **Объём текста:** в форматирование передаётся срез changelog до 8000 символов.
+- **Отладка:** `fetchRelease` логирует в консоль метрику запроса к GitHub (`[GitHub]` + owner, repo, tag, статус, время).
+
+---
+
