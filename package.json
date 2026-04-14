@@ -3,7 +3,7 @@
     "type": "module",
     "scripts": {
         "dev": "tsx watch src/index.ts",
-        "build": "tsc",
+        "build": "tsup",
         "start": "node dist/index.js",
         "test": "vitest",
         "type-check": "tsc --noEmit",
@@ -26,6 +26,7 @@
         "eslint": "^10.0.3",
         "eslint-config-prettier": "^10.1.8",
         "prettier": "^3.8.1",
+        "tsup": "^8.5.1",
         "tsx": "^4.7.1",
         "typescript": "^5.9.3",
         "vitest": "^4.1.0"
