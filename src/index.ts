@@ -1,7 +1,9 @@
+import process from 'node:process';
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
+import app from '@/app.ts';
+import { loadEnv } from '@/config/loadEnv.ts';
 
-const app = new Hono();
-serve({ fetch: app.fetch, port: 3000 });
+loadEnv();
 
-export default app;
+const port = Number(process.env.PORT) || 3000;
+serve({ fetch: app.fetch, port });

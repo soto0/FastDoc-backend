@@ -17,17 +17,10 @@ cache:
 
 workflow:
     rules:
-        - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-        - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
-        - if: $CI_PIPELINE_SOURCE == "web"
-        - if: $CI_PIPELINE_SOURCE == "schedule"
-        - when: never
-
-.base-job:
-    rules:
+        - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop"
         - if: $CI_COMMIT_BRANCH == "main"
-        - if: $CI_COMMIT_BRANCH == "develop"
-        - if: $CI_COMMIT_MERGE_REQUEST_ID
+        - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+        - when: never
 
 install:
     stage: install
@@ -40,7 +33,6 @@ install:
         expire_in: 1 hour
 
 format:
-    extends: .base-job
     stage: format
     variables:
         NODE_ENV: development
@@ -51,7 +43,6 @@ format:
         - npm run type-check
 
 test:
-    extends: .base-job
     stage: test
     variables:
         NODE_ENV: test
@@ -60,7 +51,6 @@ test:
         - npm run test
 
 build:
-    extends: .base-job
     stage: build
     variables:
         NODE_ENV: production
