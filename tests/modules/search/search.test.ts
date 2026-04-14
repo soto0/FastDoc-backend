@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '@/app';
+import * as githubRelease from '@/services/github/getRelease.service';
 import * as groqService from '@/services/groq/generateAIResponse.service';
 import * as npmRegistry from '@/services/npmRegistry/getNpmLibraryMetadata';
 import { AppError } from '@/utils/appError';
-import { expectError } from '@/utils/testHelper';
+import { expectError } from '@tests/helpers/testHelper';
 
 const groqCompletion = (content: string) => ({
     id: 'mock-id',
@@ -27,54 +28,49 @@ afterEach(() => {
 });
 
 describe('search endpoint', () => {
-    it('should return parsed library, version and repository', async () => {
-        vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(
-            groqCompletion(JSON.stringify({ library: 'react', version: '18.0.0' })) as never
-        );
+    it('returns formatted changelog string', async () => {
+        vi.spyOn(groqService, 'generateAIResponse')
+            .mockResolvedValueOnce(groqCompletion(JSON.stringify({ library: 'react', version: '18.0.0' })) as never)
+            .mockResolvedValueOnce(groqCompletion('## React 18\n\nСводка изменений.') as never);
         vi.spyOn(npmRegistry, 'getNpmLibraryMetadata').mockResolvedValueOnce({
             version: '18.0.0',
-            repository: 'facebook/react'
+            owner: 'facebook',
+            repo: 'react'
         });
+        vi.spyOn(githubRelease, 'getRelease').mockResolvedValueOnce('## Raw release notes');
 
         const res = await request('test search');
         expect(res.status).toBe(200);
         await expect(res.json()).resolves.toEqual({
-            answer: {
-                library: 'react',
-                version: '18.0.0',
-                repository: 'facebook/react'
-            },
+            changelog: '## React 18\n\nСводка изменений.',
             success: true
         });
     });
 
-    it('should resolve metadata when model returns null version', async () => {
-        vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(
-            groqCompletion(JSON.stringify({ library: 'lodash', version: null })) as never
-        );
+    it('resolves metadata when model returns null version', async () => {
+        vi.spyOn(groqService, 'generateAIResponse')
+            .mockResolvedValueOnce(groqCompletion(JSON.stringify({ library: 'lodash', version: null })) as never)
+            .mockResolvedValueOnce(groqCompletion('## Lodash changelog') as never);
         vi.spyOn(npmRegistry, 'getNpmLibraryMetadata').mockResolvedValueOnce({
             version: '4.17.21',
-            repository: 'lodash/lodash'
+            owner: 'lodash',
+            repo: 'lodash'
         });
+        vi.spyOn(githubRelease, 'getRelease').mockResolvedValueOnce('raw');
 
         const res = await request('lodash docs');
         expect(res.status).toBe(200);
         await expect(res.json()).resolves.toEqual({
-            answer: {
-                library: 'lodash',
-                version: '4.17.21',
-                repository: 'lodash/lodash'
-            },
+            changelog: '## Lodash changelog',
             success: true
         });
     });
 
-    it('should return null answer when model output is not valid JSON', async () => {
+    it('returns 400 when parseSearch cannot parse model output', async () => {
         vi.spyOn(groqService, 'generateAIResponse').mockResolvedValueOnce(groqCompletion('plain text') as never);
 
         const res = await request('test search');
-        expect(res.status).toBe(200);
-        await expect(res.json()).resolves.toEqual({ answer: null, success: true });
+        await expectError(res, 400, 'Не удалось получить информацию о библиотеке');
     });
 
     it('should return 400 when query is too short or empty', async () => {
