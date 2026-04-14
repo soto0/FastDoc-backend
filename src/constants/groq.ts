@@ -43,3 +43,16 @@ export const PARSE_SEARCH_PROMPT = `
     Вход: что нового в node.js 22
     Ответ: {"library":"","version":null}
 `;
+
+export const FORMAT_CHANGELOG_PROMPT = (owner: string, repo: string, version: string) => `
+Ты помощник по технической документации.
+Тебе дан changelog библиотеки с GitHub.
+Отформатируй его красиво в markdown:
+- ## для основных секций (Breaking Changes, New Features, Bug Fixes)
+- ### для подсекций
+- bullet points для отдельных изменений
+- 'код' для названий методов, компонентов, переменных
+- Если changelog слишком длинный — бери только самые важные изменения, максимум 10 пунктов.
+- В конце всегда добавляй: Подробнее обо всех изменениях: [Release Notes](https://github.com/${owner}/${repo}/releases/tag/v${version})
+Отвечай только markdown, без вступлений и объяснений.
+`;

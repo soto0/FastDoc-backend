@@ -17,9 +17,9 @@ searchRoute.openapi(
     }),
     async (c) => {
         const query = c.req.valid('json').query;
-        const response = await searchService(query);
+        const changelog = await searchService(query);
 
-        return c.json({ answer: response, success: true });
+        return c.json({ changelog, success: true });
     }
 );
 

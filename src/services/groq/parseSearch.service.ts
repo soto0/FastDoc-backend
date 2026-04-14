@@ -5,7 +5,8 @@ import { getNpmLibraryMetadata } from '../npmRegistry/getNpmLibraryMetadata';
 interface IParsedSearch {
     library: string;
     version: string;
-    repository: string;
+    repo: string;
+    owner: string;
 }
 
 export const parseSearch = async (query: string): Promise<IParsedSearch | null> => {
@@ -16,10 +17,11 @@ export const parseSearch = async (query: string): Promise<IParsedSearch | null> 
 
     try {
         const parsedContent = JSON.parse(content) as IParsedSearch;
+
         if (!parsedContent.library) return null;
 
-        const { version, repository } = await getNpmLibraryMetadata({ library: parsedContent.library, version: parsedContent.version });
-        return { ...parsedContent, version, repository };
+        const { version, repo, owner } = await getNpmLibraryMetadata({ library: parsedContent.library, version: parsedContent.version });
+        return { ...parsedContent, version, repo, owner };
     } catch {
         return null;
     }

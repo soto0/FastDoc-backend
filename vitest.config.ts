@@ -7,7 +7,8 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
     resolve: {
         alias: {
-            '@': path.resolve(rootDir, 'src')
+            '@': path.resolve(rootDir, 'src'),
+            '@tests': path.resolve(rootDir, 'tests')
         }
     }
 });

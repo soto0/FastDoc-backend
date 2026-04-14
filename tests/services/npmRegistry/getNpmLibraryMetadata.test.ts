@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe('getNpmLibraryMetadata', () => {
-    it('returns version and github slug from registry payload', async () => {
+    it('returns version, owner and repo from registry payload', async () => {
         vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
             npmResponse({
                 version: '2.0.1',
@@ -23,7 +23,8 @@ describe('getNpmLibraryMetadata', () => {
 
         await expect(getNpmLibraryMetadata({ library: 'some-pkg', version: '2.0.1' })).resolves.toEqual({
             version: '2.0.1',
-            repository: 'foo/some-pkg'
+            owner: 'foo',
+            repo: 'some-pkg'
         });
         expect(fetch).toHaveBeenCalledWith('https://registry.npmjs.org/some-pkg/2.0.1');
     });

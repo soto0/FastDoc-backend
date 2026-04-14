@@ -24,19 +24,21 @@ afterEach(() => {
 });
 
 describe('parseSearch', () => {
-    it('returns library, version and repository from npm metadata', async () => {
+    it('returns library, version, owner and repo from npm metadata', async () => {
         vi.spyOn(generateModule, 'generateAIResponse').mockResolvedValueOnce(
             groqPayload(JSON.stringify({ library: 'react', version: '18.0.0' })) as never
         );
         vi.spyOn(npmModule, 'getNpmLibraryMetadata').mockResolvedValueOnce({
             version: '18.0.0',
-            repository: 'facebook/react'
+            owner: 'facebook',
+            repo: 'react'
         });
 
         await expect(parseSearch('react 18')).resolves.toEqual({
             library: 'react',
             version: '18.0.0',
-            repository: 'facebook/react'
+            owner: 'facebook',
+            repo: 'react'
         });
         expect(npmModule.getNpmLibraryMetadata).toHaveBeenCalledWith({ library: 'react', version: '18.0.0' });
     });
@@ -47,13 +49,15 @@ describe('parseSearch', () => {
         );
         vi.spyOn(npmModule, 'getNpmLibraryMetadata').mockResolvedValueOnce({
             version: '4.17.21',
-            repository: 'lodash/lodash'
+            owner: 'lodash',
+            repo: 'lodash'
         });
 
         await expect(parseSearch('lodash')).resolves.toEqual({
             library: 'lodash',
             version: '4.17.21',
-            repository: 'lodash/lodash'
+            owner: 'lodash',
+            repo: 'lodash'
         });
         expect(npmModule.getNpmLibraryMetadata).toHaveBeenCalledWith({ library: 'lodash', version: null });
     });
