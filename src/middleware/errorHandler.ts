@@ -19,5 +19,6 @@ export const errorHandler: ErrorHandler = (err, c) => {
         return c.json({ error: err.message, code: err.code, success: false }, err.status);
     }
 
+    console.error('[UNHANDLED ERROR]', err);
     return c.json({ error: 'Internal server error', success: false }, 500);
 };
