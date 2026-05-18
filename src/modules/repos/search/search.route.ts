@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
-import { searchParams, searchResponse } from './search.schema';
+import { searchParams, searchSchema } from './search.schema';
 import { searchService } from './search.service';
 
 const searchRoute = new OpenAPIHono();
@@ -11,7 +11,7 @@ searchRoute.openapi(
         summary: 'Поиск по названию',
         request: { query: searchParams },
         responses: {
-            200: { content: { 'application/json': { schema: searchResponse } }, description: 'Успешный ответ' },
+            200: { content: { 'application/json': { schema: searchSchema } }, description: 'Успешный ответ' },
             400: { description: 'Ошибка валидации' }
         }
     }),
