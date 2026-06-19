@@ -5,7 +5,6 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { poweredBy } from 'hono/powered-by';
 import { errorHandler } from '@/middleware/errorHandler.ts';
-// import searchRoute from '@/modules/search/search.route.ts';
 import reposRouter from './modules/repos';
 
 const app = new OpenAPIHono();
@@ -24,7 +23,6 @@ app.onError(errorHandler);
 const api = app.basePath('/api');
 
 api.route('/repos', reposRouter);
-// api.route('/search', searchRoute);
 
 api.doc('/documentation', {
     openapi: '3.0.0',

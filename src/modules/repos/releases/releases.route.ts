@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
-import { releasesParams, releasesSchema } from './releases.schema';
+import { releasesParams, releasesResponseSchema } from './releases.schema';
 import { releasesService } from './releases.service';
 
 const releasesRoute = new OpenAPIHono();
@@ -11,7 +11,7 @@ releasesRoute.openapi(
         summary: 'Поиск релизов репозитория',
         request: { query: releasesParams },
         responses: {
-            200: { content: { 'application/json': { schema: releasesSchema } }, description: 'Успешный ответ' },
+            200: { content: { 'application/json': { schema: releasesResponseSchema } }, description: 'Успешный ответ' },
             400: { description: 'Ошибка валидации' }
         }
     }),
@@ -19,7 +19,7 @@ releasesRoute.openapi(
         const params = c.req.valid('query');
         const result = await releasesService(params);
 
-        return c.json({ payload: result, meta: { success: true } });
+        return c.json({ payload: result.releases, meta: { success: true, hasMore: result.hasMore } });
     }
 );
 
