@@ -4,8 +4,7 @@ export interface IReleases {
     tag: string;
 }
 
-export interface IReleasesResponse {
-    id: number;
-    name: string;
-    tag_name: string;
+export interface IReleasesPage {
+    releases: IReleases[];
+    hasMore: boolean;
 }

@@ -4,16 +4,16 @@ import { generateAIResponse } from '@/services/groq/generateAIResponse.service';
 export const formatChangelog = async ({
     owner,
     repo,
-    version,
+    tag,
     changelog
 }: {
     owner: string;
     repo: string;
-    version: string;
+    tag: string;
     changelog: string;
-}): Promise<string | null> => {
+}): Promise<{ changelog: string } | null> => {
     const response = await generateAIResponse({
-        systemPrompt: FORMAT_CHANGELOG_PROMPT(owner, repo, version),
+        systemPrompt: FORMAT_CHANGELOG_PROMPT(owner, repo, tag),
         prompt: changelog.slice(0, 8000),
         model: 'hard'
     });
@@ -21,5 +21,5 @@ export const formatChangelog = async ({
     const content = response.choices[0]?.message.content;
     if (content == null) return null;
 
-    return content;
+    return { changelog: content };
 };
