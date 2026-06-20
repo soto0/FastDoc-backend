@@ -1,156 +1,180 @@
 # FastDoc
 
-**FastDoc** — backend-сервис, который по свободному текстовому запросу находит npm-пакет, подтягивает текст релиза с GitHub и возвращает **отформатированный changelog** в Markdown с помощью LLM (Groq).
+**FastDoc** is a full-stack application for exploring GitHub release notes. Pick a repository, choose a release tag, and get a clean, structured changelog in Markdown — formatted by an LLM (Groq) from the raw GitHub Release body.
 
-Ценность: не нужно вручную искать репозиторий, тег релиза и читать сырой текст GitHub Release — достаточно описать запрос на естественном языке (например: «что нового в next 15»).
+No more digging through long release pages: search for a project like `next.js`, select a version, and read a concise summary in seconds.
+
+This repository contains the **backend API**.
 
 ---
 
-## Содержание
+## Table of Contents
 
-- [Возможности](#возможности)
-- [Архитектура](#архитектура)
-- [Поток обработки запроса](#поток-обработки-запроса)
-- [Технологический стек](#технологический-стек)
-- [Структура репозитория](#структура-репозитория)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Request Flow](#request-flow)
+- [Tech Stack](#tech-stack)
+- [Repository Structure](#repository-structure)
 - [API](#api)
-- [Переменные окружения](#переменные-окружения)
-- [Локальный запуск](#локальный-запуск)
-- [Сборка и продакшен](#сборка-и-продакшен)
-- [Тестирование](#тестирование)
+- [Environment Variables](#environment-variables)
+- [Local Development](#local-development)
+- [Build & Production](#build--production)
+- [Testing](#testing)
 - [CI/CD](#cicd)
-- [Ограничения и замечания](#ограничения-и-замечания)
-- [Связанные репозитории](#связанные-репозитории)
+- [Limitations](#limitations)
+- [Related Repositories](#related-repositories)
 
 ---
 
-## Возможности
+## Features
 
-
-| Возможность          | Описание                                                                                                                    |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **NL → npm**         | Модель Groq извлекает каноническое имя пакета и версию из текста (с правилами для React, Next, Vue, scoped-пакетов и т.д.). |
-| **npm Registry**     | Уточнение версии и получение URL репозитория через официальный registry (`registry.npmjs.org`).                             |
-| **GitHub Releases**  | Загрузка тела релиза по API Octokit; попытка тега `v{version}`, затем без префикса `v`.                                     |
-| **Форматирование**   | Вторая LLM-стадия приводит changelog к структурированному Markdown и добавляет ссылку на release.                           |
-| **OpenAPI + Scalar** | Спецификация и интерактивная документация из коробки.                                                                       |
-
+| Feature                  | Description                                                                                                             |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| **GitHub repo search**   | Find repositories by name via the GitHub Search API (top 15 results, sorted by stars).                                  |
+| **Release listing**      | Paginated list of stable (non-prerelease) releases for a selected repository.                                           |
+| **Changelog formatting** | Groq LLM turns raw release notes into structured Markdown with headings, bullet points, and a link to the full release. |
+| **In-memory caching**    | LRU cache (5-minute TTL) on all service calls to reduce GitHub and Groq API usage.                                      |
+| **OpenAPI + Scalar**     | Interactive API documentation at `/api/doc`.                                                                            |
+| **Shareable URLs**       | The frontend syncs `repo`, `owner`, and `tag` to the URL query string for deep linking.                                 |
 
 ---
 
-## Архитектура
+## Architecture
 
-Логически сервис — тонкий HTTP-слой (Hono) над оркестрацией: **Groq** (парсинг запроса и форматирование) + **npm** (метаданные) + **GitHub** (текст релиза).
+The backend is a thin HTTP layer (Hono) over three domain services: **GitHub** (search, releases, release body) and **Groq** (changelog formatting).
 
 ```mermaid
 flowchart LR
-    subgraph Client["Клиент"]
-        FE["Браузер / фронтенд"]
+    subgraph Client["Client"]
+        FE["React frontend"]
     end
 
     subgraph API["FastDoc API — Hono"]
-        R["POST /api/search"]
+        S["GET /api/repos/search"]
+        R["GET /api/repos/releases"]
+        C["GET /api/repos/changelog"]
         O["OpenAPI + Scalar\n/api/documentation, /api/doc"]
     end
 
-    subgraph Core["Доменная логика"]
-        PS["parseSearch\n(Groq easy)"]
-        NPM["getNpmLibraryMetadata"]
-        GR["getRelease → fetchRelease"]
+    subgraph Core["Domain services"]
+        RS["searchService"]
+        RL["releasesService"]
+        CL["changelogService"]
         FC["formatChangelog\n(Groq hard)"]
+        CACHE["LRU cache\n(5 min TTL)"]
     end
 
-    subgraph External["Внешние системы"]
+    subgraph External["External APIs"]
         GROQ["Groq API"]
-        REG["npm registry"]
         GH["GitHub API\n(Octokit)"]
     end
 
-    FE --> R
-    R --> PS --> GROQ
-    PS --> NPM --> REG
-    NPM --> GR --> GH
-    GR --> FC --> GROQ
-    FC --> R --> FE
-    O -.-> R
+    FE --> S & R & C
+    S --> RS --> CACHE --> GH
+    R --> RL --> CACHE --> GH
+    C --> CL --> CACHE --> GH
+    CL --> FC --> GROQ
+    O -.-> S & R & C
 ```
 
+**Groq models** (see `src/constants/groq.ts`):
 
-
-**Модели Groq** (см. `src/constants/groq.ts`):
-
-- **easy** — `llama-3.1-8b-instant`: быстрый разбор запроса в JSON с полями библиотеки и версии.
-- **hard** — `llama-3.3-70b-versatile`: форматирование длинного текста релиза (до 8000 символов на вход в промпт).
+| Alias  | Model                     | Usage                                                              |
+| ------ | ------------------------- | ------------------------------------------------------------------ |
+| `easy` | `llama-3.1-8b-instant`    | Reserved for lightweight tasks (currently unused in the pipeline). |
+| `hard` | `llama-3.3-70b-versatile` | Changelog formatting (input truncated to 8 000 characters).        |
 
 ---
 
-## Поток обработки запроса
+## Request Flow
+
+A typical user journey spans three API calls:
 
 ```mermaid
 sequenceDiagram
-    participant C as Клиент
-    participant A as FastDoc
-    participant Q as Groq
-    participant N as npm registry
+    participant C as Frontend
+    participant A as FastDoc API
     participant G as GitHub
+    participant Q as Groq
 
-    C->>A: POST /api/search { query }
-    A->>Q: parseSearch (system + user query)
-    Q-->>A: JSON { library, version }
-    A->>N: GET /{package}/{version|latest}
-    N-->>A: version + repository.url
-    A->>A: resolveRepository → owner, repo
-    A->>G: GET release by tag vX / X
-    G-->>A: release body
+    C->>A: GET /api/repos/search?query=next.js
+    A->>G: Search repositories
+    G-->>A: [{ owner, repo, id }]
+    A-->>C: payload: repos[]
+
+    C->>A: GET /api/repos/releases?owner=vercel&repo=next.js&page=1
+    A->>G: List releases (page 1, stable only)
+    G-->>A: releases + pagination link
+    A-->>C: payload: releases[], meta.hasMore
+
+    C->>A: GET /api/repos/changelog?owner=vercel&repo=next.js&tag=v15.0.0
+    A->>G: GET release by tag
+    G-->>A: release body (raw markdown/text)
     A->>Q: formatChangelog (raw body)
-    Q-->>A: markdown
-    A-->>C: { changelog, success: true }
+    Q-->>A: formatted markdown
+    A-->>C: payload: { changelog }
 ```
 
-
-
-**Обработка ошибок:** `AppError` и ошибки валидации Zod проходят через `errorHandler`; ошибки Groq маппятся в HTTP-коды (`mapGroqError`).
+**Error handling:** `AppError` instances and Zod validation errors are handled by the global `errorHandler` middleware. Groq SDK errors are mapped to HTTP status codes via `mapGroqError`.
 
 ---
 
-## Технологический стек
+## Tech Stack
 
-
-| Категория       | Выбор                                                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Runtime         | Node.js (ESM, `type: "module"`)                                                                                      |
-| HTTP            | [Hono](https://hono.dev/) 4.x                                                                                        |
-| OpenAPI         | [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) + [Zod](https://zod.dev/) 4 |
-| Документация UI | [Scalar](https://scalar.com/) для `/api/doc`                                                                         |
-| LLM             | [Groq SDK](https://console.groq.com/)                                                                                |
-| GitHub          | [Octokit](https://github.com/octokit/octokit.js)                                                                     |
-| Сборка          | [tsup](https://tsup.egoist.dev/) → один ESM-бандл `dist/index.js`                                                    |
-| Dev             | `tsx watch`                                                                                                          |
-| Тесты           | [Vitest](https://vitest.dev/) 4                                                                                      |
-| Качество кода   | ESLint (@antfu/eslint-config), Prettier, `tsc --noEmit`                                                              |
-
+| Category     | Choice                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Runtime      | Node.js (ESM, `"type": "module"`)                                                                                    |
+| HTTP         | [Hono](https://hono.dev/) 4.x                                                                                        |
+| OpenAPI      | [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) + [Zod](https://zod.dev/) 4 |
+| API docs UI  | [Scalar](https://scalar.com/) at `/api/doc`                                                                          |
+| LLM          | [Groq SDK](https://console.groq.com/)                                                                                |
+| GitHub       | [Octokit](https://github.com/octokit/octokit.js)                                                                     |
+| Caching      | [lru-cache](https://www.npmjs.com/package/lru-cache)                                                                 |
+| Build        | [tsup](https://tsup.egoist.dev/) → single ESM bundle `dist/index.js`                                                 |
+| Dev          | `tsx watch`                                                                                                          |
+| Tests        | [Vitest](https://vitest.dev/) 4                                                                                      |
+| Code quality | ESLint (@antfu/eslint-config), Prettier, `tsc --noEmit`                                                              |
 
 ---
 
-## Структура репозитория
+## Repository Structure
 
 ```
 backend/
 ├── src/
-│   ├── index.ts              # Точка входа: loadEnv, serve(Hono)
-│   ├── app.ts                # CORS, логирование, маршруты /api, OpenAPI, Scalar
-│   ├── config/               # loadEnv, groqClient, github Octokit
-│   ├── constants/groq.ts     # Модели и системные промпты
+│   ├── index.ts                          # Entry point: loadEnv, serve(Hono)
+│   ├── app.ts                            # CORS, logging, /api routes, OpenAPI, Scalar
+│   ├── config/
+│   │   ├── loadEnv.ts                    # Loads .env.development and .env
+│   │   ├── groq.ts                       # Lazy Groq client singleton
+│   │   └── githubClient.ts               # Octokit instance
+│   ├── constants/groq.ts                 # Model names and formatting prompt
 │   ├── middleware/errorHandler.ts
-│   ├── modules/search/       # route, service, zod-схемы
+│   ├── modules/repos/
+│   │   ├── index.ts                      # Mounts search, releases, changelog routes
+│   │   ├── search/                       # GET /api/repos/search
+│   │   ├── releases/                     # GET /api/repos/releases
+│   │   └── changelog/                    # GET /api/repos/changelog
 │   ├── services/
-│   │   ├── getChangelog.service.ts   # Склейка всего пайплайна
-│   │   ├── github/getRelease.service.ts
-│   │   ├── npmRegistry/getNpmLibraryMetadata.ts
-│   │   └── groq/             # generateAI, parseSearch, formatChangelog, mapError
-│   ├── types/INpmLibrary.ts
-│   └── utils/                # fetchRelease, resolveRepository, AppError
-├── tests/                    # Модульные и интеграционные (endpoint) тесты
+│   │   ├── github/
+│   │   │   ├── getRepos.service.ts       # GitHub repository search
+│   │   │   ├── getReleases.service.ts    # Paginated release listing
+│   │   │   └── getChangelog.service.ts   # Fetch release body by tag
+│   │   └── groq/
+│   │       ├── generateAIResponse.service.ts
+│   │       ├── formatChangelog.service.ts
+│   │       └── mapError.service.ts
+│   ├── types/                            # IRepos, IReleases, IChangelog
+│   └── utils/
+│       ├── appError.ts
+│       └── cacheClient.ts                # LRU cache wrapper for async functions
+├── tests/
+│   ├── helpers/                          # expectError, mock factories
+│   ├── integration/                      # HTTP endpoint tests
+│   ├── services/                         # GitHub & Groq unit tests
+│   ├── modules/                          # module service unit tests
+│   ├── middleware/
+│   └── utils/
 ├── tsup.config.ts
 ├── vitest.config.ts
 ├── tsconfig.json
@@ -158,104 +182,206 @@ backend/
 └── .gitlab-ci.yml
 ```
 
-Псевдоним импортов: `@/*` → `src/*`, `@tests/*` → `tests/*`.
+Import alias: `@/*` → `src/*`.
 
 ---
 
 ## API
 
+All endpoints are prefixed with `/api/repos`. Responses follow a consistent envelope:
 
-| Метод и путь             | Описание                                                                                            |
-| ------------------------ | --------------------------------------------------------------------------------------------------- |
-| `POST /api/search`       | Тело: `{ "query": string }` (минимум 3 символа). Ответ: `{ "changelog": string, "success": true }`. |
-| `GET /api/documentation` | OpenAPI 3.0 JSON.                                                                                   |
-| `GET /api/doc`           | Scalar UI (тема `alternate`), ссылается на `/api/documentation`.                                    |
-
-
-**Пример запроса:**
-
-```bash
-curl -s -X POST http://localhost:3000/api/search \
-  -H "Content-Type: application/json" \
-  -d '{"query":"что нового в react 18"}'
+```json
+{
+  "payload": <data>,
+  "meta": { "success": true, ... }
+}
 ```
 
-CORS по умолчанию разрешает origin из `FRONTEND_URL` или `http://localhost:5173`.
+Error responses:
+
+```json
+{
+    "error": "Human-readable message",
+    "code": "ERROR_CODE",
+    "success": false
+}
+```
+
+### `GET /api/repos/search`
+
+Search GitHub repositories by name.
+
+| Query param | Type   | Required | Description                    |
+| ----------- | ------ | -------- | ------------------------------ |
+| `query`     | string | yes      | Search term (min 3 characters) |
+
+**Response `payload`:** array of `{ id, repo, owner }`
+
+```bash
+curl -s "http://localhost:3000/api/repos/search?query=next.js"
+```
+
+### `GET /api/repos/releases`
+
+List stable releases for a repository (prereleases are filtered out).
+
+| Query param | Type   | Required | Description                                    |
+| ----------- | ------ | -------- | ---------------------------------------------- |
+| `owner`     | string | yes      | Repository owner                               |
+| `repo`      | string | yes      | Repository name                                |
+| `page`      | number | no       | Page number (default: 1, 20 releases per page) |
+
+**Response `payload`:** array of `{ id, tag, name }`  
+**Response `meta`:** `{ success: true, hasMore: boolean }`
+
+```bash
+curl -s "http://localhost:3000/api/repos/releases?owner=vercel&repo=next.js&page=1"
+```
+
+### `GET /api/repos/changelog`
+
+Fetch and format the changelog for a specific release tag.
+
+| Query param | Type   | Required | Description                  |
+| ----------- | ------ | -------- | ---------------------------- |
+| `owner`     | string | yes      | Repository owner             |
+| `repo`      | string | yes      | Repository name              |
+| `tag`       | string | yes      | Release tag (e.g. `v15.0.0`) |
+
+**Response `payload`:** `{ changelog: string }` (formatted Markdown)
+
+```bash
+curl -s "http://localhost:3000/api/repos/changelog?owner=vercel&repo=next.js&tag=v15.0.0"
+```
+
+### Documentation endpoints
+
+| Method & path            | Description           |
+| ------------------------ | --------------------- |
+| `GET /api/documentation` | OpenAPI 3.0 JSON spec |
+| `GET /api/doc`           | Scalar interactive UI |
+
+CORS allows the origin from `FRONTEND_URL` (default `http://localhost:5173`).
 
 ---
 
-## Переменные окружения
+## Environment Variables
 
-Скопируйте `.env.example` в `.env` или `.env.development` (оба пути читает `loadEnv`).
+Copy `.env.example` to `.env` or `.env.development` (both paths are read by `loadEnv`).
 
-
-| Переменная     | Назначение                                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------------------------------- |
-| `PORT`         | Порт HTTP-сервера (по умолчанию `3000`).                                                                      |
-| `FRONTEND_URL` | Origin для CORS (по умолчанию `http://localhost:5173`).                                                       |
-| `GROQ_API_KEY` | Ключ API Groq (**обязателен** для рабочего пайплайна).                                                        |
-| `GITHUB_TOKEN` | Токен GitHub для Octokit (рекомендуется: выше лимиты API, доступ к приватным репозиториям при необходимости). |
-
+| Variable       | Description                                                           |
+| -------------- | --------------------------------------------------------------------- |
+| `PORT`         | HTTP server port (default: `3000`)                                    |
+| `FRONTEND_URL` | Allowed CORS origin (default: `http://localhost:5173`)                |
+| `GROQ_API_KEY` | Groq API key (**required** for changelog formatting)                  |
+| `GITHUB_TOKEN` | GitHub personal access token (recommended for higher API rate limits) |
 
 ---
 
-## Локальный запуск
+## Local Development
+
+### Backend
 
 ```bash
 npm ci
 cp .env.example .env
-# Заполните GROQ_API_KEY и при необходимости GITHUB_TOKEN
+# Fill in GROQ_API_KEY and optionally GITHUB_TOKEN
 
 npm run dev
 ```
 
-Сервер слушает `PORT` (см. выше). Документация: `http://localhost:3000/api/doc`.
+The server listens on `PORT`. API docs: `http://localhost:3000/api/doc`.
+
+### Frontend (companion app)
+
+```bash
+cd ../frontend
+npm ci
+cp .env.example .env
+# Set VITE_API_URL=http://localhost:3000/api
+
+npm run dev
+```
+
+The UI runs at `http://localhost:5173` by default.
 
 ---
 
-## Сборка и продакшен
+## Build & Production
 
 ```bash
 npm run build    # tsup → dist/
 npm run start    # node dist/index.js
 ```
 
-Убедитесь, что переменные окружения заданы в среде выполнения (контейнер, systemd, PaaS).
+Ensure environment variables are set in the runtime environment (container, PaaS, etc.).
 
 ---
 
-## Тестирование
+## Testing
 
 ```bash
-npm run test        # Vitest
+npm run test        # Vitest (single run)
+npm run test:watch  # Vitest watch mode
 npm run type-check  # tsc --noEmit
 npm run lint        # ESLint
 npm run format      # Prettier
 ```
 
-Тесты покрывают утилиты (`fetchRelease`, `resolveRepository`), сервисы (changelog, npm, GitHub, Groq-форматирование) и HTTP-слой `POST /api/search` с моками внешних вызовов.
+The test suite uses **Vitest** with mocked GitHub (Octokit) and Groq clients — no real API calls or secrets required.
+
+All tests live under `tests/`, mirroring the `src/` layout:
+
+```
+tests/
+├── helpers/          # shared utilities and mock factories
+├── integration/      # HTTP endpoint tests
+├── services/         # GitHub & Groq service tests
+├── modules/          # module service tests
+├── middleware/
+└── utils/
+```
+
+| Level           | Location                                                                 | What is covered                                                                             |
+| --------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| **Unit**        | `tests/services/`, `tests/modules/`, `tests/utils/`, `tests/middleware/` | GitHub/Groq services, module services, `cacheClient`, `errorHandler`                        |
+| **Integration** | `tests/integration/`                                                     | HTTP endpoints via Hono `app.request()` — validation, response envelopes, error propagation |
+
+Shared helpers live in [`tests/helpers/testHelper.ts`](tests/helpers/testHelper.ts) (`expectError`, mock factories).
 
 ---
 
 ## CI/CD
 
-В **GitLab CI** (`.gitlab-ci.yml`) для веток `main`/`develop` и соответствующих MR:
+**GitLab CI** (`.gitlab-ci.yml`) runs on `main`/`develop` branches and their merge requests:
 
 1. **install** — `npm ci`
 2. **format** — `format`, `lint`, `type-check`
 3. **test** — `npm run test`
-4. **build** — артефакт `dist/`
+4. **build** — artifact `dist/`
 
-Кэшируются `node_modules/` и связанные пути npm/vite.
+`node_modules/` and npm cache paths are cached between jobs.
 
----
-
-## Ограничения и замечания
-
-- **Только npm и GitHub:** репозиторий берётся из поля `repository` метаданных пакета; если ссылка не GitHub или отсутствует — разрешение `owner/repo` не сработает.
-- **Релиз по тегу:** используется endpoint релизов по тегу (`v{version}` или `{version}`); если релиза с таким тегом нет, получение changelog завершится ошибкой на уровне приложения.
-- **Объём текста:** в форматирование передаётся срез changelog до 8000 символов.
-- **Отладка:** `fetchRelease` логирует в консоль метрику запроса к GitHub (`[GitHub]` + owner, repo, tag, статус, время).
+The frontend pipeline additionally deploys to **Vercel** (preview on non-`main` branches, production on `main`).
 
 ---
 
+## Limitations
+
+- **GitHub only:** repository search and release data come exclusively from the GitHub API. There is no npm registry integration or natural-language query parsing.
+- **Stable releases only:** prereleases are excluded from the release list.
+- **Exact tag required:** the changelog endpoint fetches a release by tag name via `GET /repos/{owner}/{repo}/releases/tags/{tag}`. If the tag does not exist, the request fails with a 404.
+- **Input size cap:** raw release body is truncated to 8 000 characters before being sent to Groq.
+- **In-memory cache:** cache is per-process and resets on restart. Not suitable for multi-instance deployments without a shared cache layer.
+- **GitHub rate limits:** unauthenticated requests are limited to 60 requests/hour. A `GITHUB_TOKEN` raises the limit to 5 000 requests/hour.
+
+---
+
+## Related Repositories
+
+| Repository              | Role                                                             |
+| ----------------------- | ---------------------------------------------------------------- |
+| **backend** (this repo) | Hono API: GitHub proxy + Groq changelog formatting               |
+| **frontend**            | React + Vite UI: repo search, release picker, Markdown rendering |
+
+The frontend communicates with the backend via `VITE_API_URL` and stores the selected `repo`, `owner`, and `tag` in the browser URL for shareable links.

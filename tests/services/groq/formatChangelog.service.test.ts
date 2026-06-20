@@ -1,62 +1,40 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mockGroqCompletion } from '@tests/helpers/testHelper';
+import { describe, expect, it, vi } from 'vitest';
 import { formatChangelog } from '@/services/groq/formatChangelog.service';
-import * as generateModule from '@/services/groq/generateAIResponse.service';
 
-const completion = (content: string | null) =>
-    ({
-        id: 'id',
-        object: 'chat.completion',
-        created: 0,
-        model: 'mock',
-        choices: [{ index: 0, message: { role: 'assistant' as const, content }, finish_reason: 'stop' as const, logprobs: null }],
-        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-    }) as never;
+const { generateAIResponseMock } = vi.hoisted(() => ({
+    generateAIResponseMock: vi.fn()
+}));
 
-afterEach(() => {
-    vi.restoreAllMocks();
-});
+vi.mock('@/services/groq/generateAIResponse.service', () => ({
+    generateAIResponse: generateAIResponseMock
+}));
 
 describe('formatChangelog', () => {
-    it('возвращает текст ответа модели', async () => {
-        vi.spyOn(generateModule, 'generateAIResponse').mockResolvedValueOnce(completion('## Итог'));
+    const params = { owner: 'vercel', repo: 'next.js', tag: 'v14.0.0', changelog: 'raw changelog' };
 
-        await expect(
-            formatChangelog({
-                owner: 'fb',
-                repo: 'react',
-                version: '18.0.0',
-                changelog: '# Notes'
-            })
-        ).resolves.toBe('## Итог');
+    it('returns formatted changelog when Groq responds with content', async () => {
+        generateAIResponseMock.mockResolvedValueOnce(mockGroqCompletion('## Bug Fixes\n- fix'));
 
-        expect(generateModule.generateAIResponse).toHaveBeenCalledWith(
-            expect.objectContaining({
-                prompt: '# Notes',
-                model: 'hard'
-            })
-        );
+        const result = await formatChangelog(params);
+
+        expect(result).toEqual({ changelog: '## Bug Fixes\n- fix' });
     });
 
-    it('обрезает changelog до 8000 символов в prompt', async () => {
-        const long = 'x'.repeat(9000);
-        vi.spyOn(generateModule, 'generateAIResponse').mockResolvedValueOnce(completion('ok'));
+    it('returns null when Groq response has no content', async () => {
+        generateAIResponseMock.mockResolvedValueOnce(mockGroqCompletion(null));
 
-        await formatChangelog({
-            owner: 'a',
-            repo: 'b',
-            version: '1',
-            changelog: long
-        });
+        const result = await formatChangelog(params);
 
-        const call = vi.mocked(generateModule.generateAIResponse).mock.calls[0]?.[0];
-        expect(call?.prompt).toHaveLength(8000);
+        expect(result).toBeNull();
     });
 
-    it('возвращает null если content отсутствует', async () => {
-        vi.spyOn(generateModule, 'generateAIResponse').mockResolvedValueOnce(completion(null));
+    it('truncates changelog to 8000 characters before sending to Groq', async () => {
+        const longChangelog = 'a'.repeat(9000);
+        generateAIResponseMock.mockResolvedValueOnce(mockGroqCompletion('formatted'));
 
-        await expect(
-            formatChangelog({ owner: 'a', repo: 'b', version: '1', changelog: 'x' })
-        ).resolves.toBeNull();
+        await formatChangelog({ ...params, changelog: longChangelog });
+
+        expect(generateAIResponseMock).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'a'.repeat(8000), model: 'hard' }));
     });
 });

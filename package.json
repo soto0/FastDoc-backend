@@ -5,9 +5,11 @@
         "dev": "tsx watch src/index.ts",
         "build": "tsup",
         "start": "node dist/index.js",
-        "test": "vitest",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "type-check": "tsc --noEmit",
         "format": "prettier --write .",
+        "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,json,css,md}\"",
         "lint": "eslint --fix"
     },
     "dependencies": {
@@ -17,6 +19,7 @@
         "dotenv": "^17.3.1",
         "groq-sdk": "^1.1.2",
         "hono": "^4.12.9",
+        "lru-cache": "^11.3.6",
         "octokit": "^5.0.5",
         "zod": "^4.3.6"
     },
