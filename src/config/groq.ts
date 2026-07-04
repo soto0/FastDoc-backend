@@ -1,10 +1,15 @@
-import process from 'node:process';
 import Groq from 'groq-sdk';
 
-let _client: Groq | null = null;
+const clients = new Map<string, Groq>();
 
-export const groqClient = (): Groq => {
-    if (!_client) _client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+export const groqClient = (apiKey: string | undefined): Groq => {
+    const cacheKey = apiKey ?? '';
+    const cachedClient = clients.get(cacheKey);
 
-    return _client;
+    if (cachedClient) return cachedClient;
+
+    const client = new Groq({ apiKey });
+    clients.set(cacheKey, client);
+
+    return client;
 };

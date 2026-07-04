@@ -1,8 +1,9 @@
+import type { AppEnv } from '@/types/AppEnv';
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
 import { changelogParams, changelogSchema } from './changelog.schema';
 import { changelogService } from './changelog.service';
 
-const changelogRoute = new OpenAPIHono();
+const changelogRoute = new OpenAPIHono<AppEnv>();
 
 changelogRoute.openapi(
     createRoute({
@@ -17,7 +18,7 @@ changelogRoute.openapi(
     }),
     async (c) => {
         const params = c.req.valid('query');
-        const result = await changelogService(params);
+        const result = await changelogService(params, c.env);
 
         return c.json({ payload: result, meta: { success: true } });
     }

@@ -1,6 +1,15 @@
-import process from 'node:process';
 import { Octokit } from 'octokit';
 
-const githubClient = new Octokit({ auth: process.env.GITHUB_TOKEN });
+const clients = new Map<string, Octokit>();
 
-export default githubClient;
+export const githubClient = (auth: string | undefined): Octokit => {
+    const cacheKey = auth ?? '';
+    const cachedClient = clients.get(cacheKey);
+
+    if (cachedClient) return cachedClient;
+
+    const client = new Octokit({ auth });
+    clients.set(cacheKey, client);
+
+    return client;
+};
