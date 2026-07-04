@@ -1,0 +1,21 @@
+{
+    "$schema": "./node_modules/wrangler/config-schema.json",
+    "name": "fastdoc-backend",
+    "main": "src/worker.ts",
+    "compatibility_date": "2026-07-04",
+    "compatibility_flags": ["nodejs_compat"],
+    "observability": {
+        "enabled": true
+    },
+    "vars": {
+        "FRONTEND_URL": "http://localhost:5173"
+    },
+    "env": {
+        "production": {
+            "name": "fastdoc-backend",
+            "vars": {
+                "FRONTEND_URL": "https://fastdoc-backend.kaden0065.workers.dev"
+            }
+        }
+    }
+}

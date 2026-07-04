@@ -1,8 +1,9 @@
+import type { AppEnv } from '@/types/AppEnv';
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
 import { releasesParams, releasesResponseSchema } from './releases.schema';
 import { releasesService } from './releases.service';
 
-const releasesRoute = new OpenAPIHono();
+const releasesRoute = new OpenAPIHono<AppEnv>();
 
 releasesRoute.openapi(
     createRoute({
@@ -17,7 +18,7 @@ releasesRoute.openapi(
     }),
     async (c) => {
         const params = c.req.valid('query');
-        const result = await releasesService(params);
+        const result = await releasesService(params, c.env);
 
         return c.json({ payload: result.releases, meta: { success: true, hasMore: result.hasMore } });
     }

@@ -11,9 +11,9 @@ const { requestMock, createMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/config/githubClient', () => ({
-    default: {
+    githubClient: () => ({
         request: requestMock
-    }
+    })
 }));
 
 vi.mock('@/config/groq', () => ({
