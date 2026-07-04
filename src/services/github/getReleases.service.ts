@@ -1,5 +1,7 @@
+import type { AppBindings } from '@/types/AppEnv';
 import type { IReleases, IReleasesPage } from '@/types/IReleases';
-import githubClient from '@/config/githubClient';
+import { githubClient } from '@/config/githubClient';
+import { getRuntimeEnv } from '@/config/runtimeEnv';
 
 interface GetReleasesParams {
     repo: string;
@@ -10,8 +12,8 @@ interface GetReleasesParams {
 const GITHUB_RELEASES_PER_PAGE = 20;
 const HAS_NEXT_PAGE_REGEX = /\brel="next"/;
 
-export const getReleases = async (params: GetReleasesParams): Promise<IReleasesPage> => {
-    const response = await githubClient.request('GET /repos/{owner}/{repo}/releases', {
+export const getReleases = async (params: GetReleasesParams, env?: AppBindings): Promise<IReleasesPage> => {
+    const response = await githubClient(getRuntimeEnv(env, 'GITHUB_TOKEN')).request('GET /repos/{owner}/{repo}/releases', {
         owner: params.owner,
         repo: params.repo,
         page: params.page,

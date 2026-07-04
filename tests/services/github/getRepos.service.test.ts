@@ -7,9 +7,9 @@ const { requestMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/config/githubClient', () => ({
-    default: {
+    githubClient: () => ({
         request: requestMock
-    }
+    })
 }));
 
 describe('getRepos', () => {

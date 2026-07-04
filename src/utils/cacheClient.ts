@@ -1,8 +1,8 @@
 import { LRUCache } from 'lru-cache';
 
-type AsyncFn<T, A extends any[]> = (...args: A) => Promise<T>;
+type AsyncFn<T, A extends unknown[]> = (...args: A) => Promise<T>;
 
-export const cacheClient = <T extends object, A extends any[]>(fn: AsyncFn<T, A>, options: { ttl: number; keyFn: (...args: A) => string }) => {
+export const cacheClient = <T extends object, A extends unknown[]>(fn: AsyncFn<T, A>, options: { ttl: number; keyFn: (...args: A) => string }) => {
     const cache = new LRUCache<string, T>({
         max: 500,
         ttl: options.ttl,

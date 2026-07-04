@@ -1,8 +1,9 @@
+import type { AppEnv } from '@/types/AppEnv';
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
 import { searchParams, searchSchema } from './search.schema';
 import { searchService } from './search.service';
 
-const searchRoute = new OpenAPIHono();
+const searchRoute = new OpenAPIHono<AppEnv>();
 
 searchRoute.openapi(
     createRoute({
@@ -17,7 +18,7 @@ searchRoute.openapi(
     }),
     async (c) => {
         const { query } = c.req.valid('query');
-        const result = await searchService(query);
+        const result = await searchService(query, c.env);
 
         return c.json({ payload: result, meta: { success: true } });
     }

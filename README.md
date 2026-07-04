@@ -123,7 +123,7 @@ sequenceDiagram
 
 | Category     | Choice                                                                                                               |
 | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Runtime      | Node.js (ESM, `"type": "module"`)                                                                                    |
+| Runtime      | Node.js for local/server builds, Cloudflare Workers for deployment                                                   |
 | HTTP         | [Hono](https://hono.dev/) 4.x                                                                                        |
 | OpenAPI      | [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) + [Zod](https://zod.dev/) 4 |
 | API docs UI  | [Scalar](https://scalar.com/) at `/api/doc`                                                                          |
@@ -142,7 +142,8 @@ sequenceDiagram
 ```
 backend/
 ├── src/
-│   ├── index.ts                          # Entry point: loadEnv, serve(Hono)
+│   ├── index.ts                          # Node entry point: loadEnv, serve(Hono)
+│   ├── worker.ts                         # Cloudflare Workers entry point
 │   ├── app.ts                            # CORS, logging, /api routes, OpenAPI, Scalar
 │   ├── config/
 │   │   ├── loadEnv.ts                    # Loads .env.development and .env
@@ -179,6 +180,8 @@ backend/
 ├── vitest.config.ts
 ├── tsconfig.json
 ├── .env.example
+├── .dev.vars.example
+├── wrangler.jsonc
 └── .gitlab-ci.yml
 ```
 
@@ -269,6 +272,8 @@ CORS allows the origin from `FRONTEND_URL` (default `http://localhost:5173`).
 
 Copy `.env.example` to `.env` or `.env.development` (both paths are read by `loadEnv`).
 
+For Cloudflare Workers local development, copy `.dev.vars.example` to `.dev.vars`.
+
 | Variable       | Description                                                           |
 | -------------- | --------------------------------------------------------------------- |
 | `PORT`         | HTTP server port (default: `3000`)                                    |
@@ -291,6 +296,13 @@ npm run dev
 ```
 
 The server listens on `PORT`. API docs: `http://localhost:3000/api/doc`.
+
+Cloudflare Workers runtime:
+
+```bash
+cp .dev.vars.example .dev.vars
+npm run dev:worker
+```
 
 ### Frontend (companion app)
 
@@ -315,6 +327,24 @@ npm run start    # node dist/index.js
 ```
 
 Ensure environment variables are set in the runtime environment (container, PaaS, etc.).
+
+Cloudflare Workers deploy:
+
+```bash
+npm run deploy:staging
+npm run deploy
+```
+
+Set `GROQ_API_KEY` and `GITHUB_TOKEN` as Cloudflare Worker secrets, not plain vars:
+
+```bash
+npx wrangler secret put GROQ_API_KEY --env production
+npx wrangler secret put GITHUB_TOKEN --env production
+npx wrangler secret put GROQ_API_KEY --env staging
+npx wrangler secret put GITHUB_TOKEN --env staging
+```
+
+Update `FRONTEND_URL` in `wrangler.jsonc` for staging and production before deploying.
 
 ---
 
@@ -359,10 +389,23 @@ Shared helpers live in [`tests/helpers/testHelper.ts`](tests/helpers/testHelper.
 2. **format** — `format`, `lint`, `type-check`
 3. **test** — `npm run test`
 4. **build** — artifact `dist/`
+5. **deploy** — `develop` deploys to Cloudflare staging, `main` deploys to Cloudflare production
 
 `node_modules/` and npm cache paths are cached between jobs.
 
-The frontend pipeline additionally deploys to **Vercel** (preview on non-`main` branches, production on `main`).
+Required GitLab CI/CD variables:
+
+| Variable                | Description                             |
+| ----------------------- | --------------------------------------- |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID                   |
+| `CLOUDFLARE_API_TOKEN`  | API token with Workers edit permissions |
+
+Required Cloudflare Worker secrets:
+
+| Secret         | Description                      |
+| -------------- | -------------------------------- |
+| `GROQ_API_KEY` | Groq API key                     |
+| `GITHUB_TOKEN` | GitHub token for higher API rate |
 
 ---
 
