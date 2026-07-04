@@ -64,20 +64,6 @@ build:
             - dist/
         expire_in: 1 hour
 
-deploy_staging:
-    stage: deploy
-    variables:
-        NODE_ENV: production
-    script:
-        - echo "[DEPLOY:STAGING]"
-        - test -n "$CLOUDFLARE_ACCOUNT_ID"
-        - test -n "$CLOUDFLARE_API_TOKEN"
-        - npm run deploy:staging
-    rules:
-        - if: $CI_COMMIT_BRANCH == "develop"
-    environment:
-        name: staging
-
 deploy_production:
     stage: deploy
     variables:
