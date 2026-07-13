@@ -1,7 +1,7 @@
 /* eslint-disable ts/no-unsafe-return */
 /* eslint-disable ts/no-unsafe-member-access */
 /* eslint-disable ts/no-unsafe-assignment */
-import type { ChatCompletion } from 'groq-sdk/resources/chat/completions.mjs';
+import type { Response as OpenAIResponse } from 'openai/resources/responses/responses';
 import { expect } from 'vitest';
 
 export const expectError = async (res: Response, expectedStatus: number, expectedError?: string) => {
@@ -50,18 +50,13 @@ export const mockGithubRelease = (overrides: GithubReleaseOverrides = {}) => ({
     prerelease: overrides.prerelease ?? false
 });
 
-export const mockGroqCompletion = (content: string | null): ChatCompletion => ({
-    id: 'chatcmpl-test',
-    object: 'chat.completion',
-    created: 0,
-    model: 'llama-3.3-70b-versatile',
-    choices: [
-        {
-            index: 0,
-            message: { role: 'assistant', content },
-            finish_reason: 'stop',
-            logprobs: null
-        }
-    ],
-    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-});
+export const mockOpenAIResponse = (outputText: string): OpenAIResponse =>
+    (({
+        id: 'resp-test',
+        object: 'response',
+        created_at: 0,
+        model: 'gpt-5.6-terra',
+        output_text: outputText,
+        output: [],
+        status: 'completed'
+    }) as unknown) as OpenAIResponse;

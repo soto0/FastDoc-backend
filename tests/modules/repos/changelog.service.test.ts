@@ -10,7 +10,7 @@ vi.mock('@/services/github/getChangelog.service', () => ({
     getChangelog: getChangelogMock
 }));
 
-vi.mock('@/services/groq/formatChangelog.service', () => ({
+vi.mock('@/services/ai/formatChangelog.service', () => ({
     formatChangelog: formatChangelogMock
 }));
 
@@ -38,7 +38,7 @@ describe('changelogService', () => {
         });
     });
 
-    it('throws FORMAT_CHANGELOG_ERROR when Groq returns no content', async () => {
+    it('throws FORMAT_CHANGELOG_ERROR when AI formatter returns no content', async () => {
         getChangelogMock.mockResolvedValueOnce('raw body');
         formatChangelogMock.mockResolvedValueOnce(null);
 

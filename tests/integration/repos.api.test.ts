@@ -1,4 +1,4 @@
-import { expectError, mockGithubRelease, mockGithubRepos, mockGroqCompletion } from '@tests/helpers/testHelper';
+import { expectError, mockGithubRelease, mockGithubRepos, mockOpenAIResponse } from '@tests/helpers/testHelper';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /* eslint-disable ts/no-unsafe-assignment */
@@ -16,12 +16,10 @@ vi.mock('@/config/githubClient', () => ({
     })
 }));
 
-vi.mock('@/config/groq', () => ({
-    groqClient: () => ({
-        chat: {
-            completions: {
-                create: createMock
-            }
+vi.mock('@/config/openai', () => ({
+    openaiClient: () => ({
+        responses: {
+            create: createMock
         }
     })
 }));
@@ -122,7 +120,18 @@ describe('repos API', () => {
             requestMock.mockResolvedValueOnce({
                 data: { body: 'raw changelog content' }
             });
-            createMock.mockResolvedValueOnce(mockGroqCompletion('## Bug Fixes\n- fixed issue'));
+            createMock.mockResolvedValueOnce(
+                mockOpenAIResponse(
+                    JSON.stringify({
+                        sections: [
+                            {
+                                title: 'Bug Fixes',
+                                items: [{ text: 'fixed issue', evidenceLines: [1] }]
+                            }
+                        ]
+                    })
+                )
+            );
 
             const res = await app.request('/api/repos/changelog?owner=vercel&repo=next.js&tag=v14-api-1');
 
@@ -130,7 +139,14 @@ describe('repos API', () => {
 
             const data = await res.json();
             expect(data).toEqual({
-                payload: { changelog: '## Bug Fixes\n- fixed issue' },
+                payload: {
+                    changelog: [
+                        '## Bug Fixes',
+                        '- fixed issue',
+                        '',
+                        'Подробнее обо всех изменениях: [Release Notes](https://github.com/vercel/next.js/releases/tag/v14-api-1)'
+                    ].join('\n')
+                },
                 meta: { success: true }
             });
         });
