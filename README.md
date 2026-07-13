@@ -389,17 +389,17 @@ Shared helpers live in [`tests/helpers/testHelper.ts`](tests/helpers/testHelper.
 
 ## CI/CD
 
-**GitLab CI** (`.gitlab-ci.yml`) runs on `main`/`develop` branches and their merge requests:
+**GitHub Actions** (`.github/workflows/ci.yml`) runs on `main`/`develop` pushes and pull requests:
 
-1. **install** — `npm ci`
-2. **format** — `format`, `lint`, `type-check`
+1. **install** — `npm ci --ignore-scripts`
+2. **format** — `format:check`, ESLint, `type-check`
 3. **test** — `npm run test`
-4. **build** — artifact `dist/`
-5. **deploy** — `develop` deploys to Cloudflare staging, `main` deploys to Cloudflare production
+4. **build** — `npm run build`
+5. **deploy** — `main` deploys to Cloudflare Workers production
 
-`node_modules/` and npm cache paths are cached between jobs.
+The workflow uses GitHub's npm cache through `actions/setup-node`.
 
-Required GitLab CI/CD variables:
+Required GitHub Actions secrets:
 
 | Variable                | Description                             |
 | ----------------------- | --------------------------------------- |
