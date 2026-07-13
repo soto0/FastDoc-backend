@@ -1,7 +1,7 @@
 import type { AppBindings } from '@/types/AppEnv';
 import type { IChangelog } from '@/types/IChangelog';
+import { formatChangelog } from '@/services/ai/formatChangelog.service';
 import { getChangelog } from '@/services/github/getChangelog.service';
-import { formatChangelog } from '@/services/groq/formatChangelog.service';
 import { AppError } from '@/utils/appError';
 import { cacheClient } from '@/utils/cacheClient';
 
