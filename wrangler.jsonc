@@ -9,14 +9,18 @@
     },
     "vars": {
         "FRONTEND_URL": "http://localhost:5173",
-        "OPENAI_MODEL": "gpt-5.6-terra"
+        "AI_PROVIDER": "gemini",
+        "OPENAI_MODEL": "gpt-5.6-terra",
+        "GEMINI_MODEL": "gemini-3.5-flash"
     },
     "env": {
         "production": {
             "name": "fastdoc-backend",
             "vars": {
                 "FRONTEND_URL": "https://fastdoc-backend.kaden0065.workers.dev",
-                "OPENAI_MODEL": "gpt-5.6-terra"
+                "AI_PROVIDER": "gemini",
+                "OPENAI_MODEL": "gpt-5.6-terra",
+                "GEMINI_MODEL": "gemini-3.5-flash"
             }
         }
     }

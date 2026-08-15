@@ -1,6 +1,6 @@
 # FastDoc
 
-**FastDoc** is a full-stack application for exploring GitHub release notes. Pick a repository, choose a release tag, and get a clean, structured changelog in Markdown — formatted by an OpenAI model from the raw GitHub Release body.
+**FastDoc** is a full-stack application for exploring GitHub release notes. Pick a repository, choose a release tag, and get a clean, structured changelog in Markdown — formatted by a configured AI provider from the raw GitHub Release body.
 
 No more digging through long release pages: search for a project like `next.js`, select a version, and read a concise summary in seconds.
 
@@ -28,20 +28,20 @@ This repository contains the **backend API**.
 
 ## Features
 
-| Feature                  | Description                                                                                                             |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| **GitHub repo search**   | Find repositories by name via the GitHub Search API (top 15 results, sorted by stars).                                  |
-| **Release listing**      | Paginated list of stable (non-prerelease) releases for a selected repository.                                           |
-| **Changelog formatting** | OpenAI Responses API turns raw release notes into validated structured data, then the backend renders Markdown locally. |
-| **In-memory caching**    | LRU cache (5-minute TTL) on all service calls to reduce GitHub and OpenAI API usage.                                    |
-| **OpenAPI + Scalar**     | Interactive API documentation at `/api/doc`.                                                                            |
-| **Shareable URLs**       | The frontend syncs `repo`, `owner`, and `tag` to the URL query string for deep linking.                                 |
+| Feature                  | Description                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| **GitHub repo search**   | Find repositories by name via the GitHub Search API (top 15 results, sorted by stars).                              |
+| **Release listing**      | Paginated list of stable (non-prerelease) releases for a selected repository.                                       |
+| **Changelog formatting** | OpenAI or Gemini turns raw release notes into validated structured data, then the backend renders Markdown locally. |
+| **In-memory caching**    | LRU cache (5-minute TTL) on all service calls to reduce GitHub and AI provider API usage.                           |
+| **OpenAPI + Scalar**     | Interactive API documentation at `/api/doc`.                                                                        |
+| **Shareable URLs**       | The frontend syncs `repo`, `owner`, and `tag` to the URL query string for deep linking.                             |
 
 ---
 
 ## Architecture
 
-The backend is a thin HTTP layer (Hono) over three domain services: **GitHub** (search, releases, release body) and **AI** (OpenAI changelog formatting).
+The backend is a thin HTTP layer (Hono) over three domain services: **GitHub** (search, releases, release body) and **AI** (provider-routed changelog formatting).
 
 ```mermaid
 flowchart LR
@@ -60,12 +60,13 @@ flowchart LR
         RS["searchService"]
         RL["releasesService"]
         CL["changelogService"]
-        FC["formatChangelog\n(OpenAI)"]
+        FC["formatChangelog\n(AI provider router)"]
         CACHE["LRU cache\n(5 min TTL)"]
     end
 
     subgraph External["External APIs"]
         OAI["OpenAI API"]
+        GEM["Gemini API"]
         GH["GitHub API\n(Octokit)"]
     end
 
@@ -73,16 +74,17 @@ flowchart LR
     S --> RS --> CACHE --> GH
     R --> RL --> CACHE --> GH
     C --> CL --> CACHE --> GH
-    CL --> FC --> OAI
+    CL --> FC --> OAI & GEM
     O -.-> S & R & C
 ```
 
-**OpenAI model** (see `src/constants/ai.ts`):
+**AI provider** (see `src/constants/ai.ts`):
 
-| Env value        | Default         | Usage                                                                                  |
-| ---------------- | --------------- | -------------------------------------------------------------------------------------- |
-| `OPENAI_MODEL`   | `gpt-5.6-terra` | Changelog formatting through Responses API with strict JSON schema and low reasoning.  |
-| cheap override   | `gpt-5.6-luna`  | Optional lower-cost model override when quality tradeoffs are acceptable.              |
+| Env value      | Default            | Usage                                                           |
+| -------------- | ------------------ | --------------------------------------------------------------- |
+| `AI_PROVIDER`  | `openai`           | Selects the AI backend: `openai` or `gemini`.                   |
+| `OPENAI_MODEL` | `gpt-5.6-terra`    | OpenAI Responses API with strict JSON schema and low reasoning. |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Gemini `generateContent` with JSON Schema output.               |
 
 ---
 
@@ -95,7 +97,7 @@ sequenceDiagram
     participant C as Frontend
     participant A as FastDoc API
     participant G as GitHub
-    participant Q as OpenAI
+    participant Q as AI Provider
 
     C->>A: GET /api/repos/search?query=next.js
     A->>G: Search repositories
@@ -115,25 +117,25 @@ sequenceDiagram
     A-->>C: payload: { changelog }
 ```
 
-**Error handling:** `AppError` instances and Zod validation errors are handled by the global `errorHandler` middleware. OpenAI SDK errors are mapped to HTTP status codes via `mapOpenAIError`.
+**Error handling:** `AppError` instances and Zod validation errors are handled by the global `errorHandler` middleware. OpenAI and Gemini SDK errors are mapped to stable AI error codes in `mapError.service.ts`.
 
 ---
 
 ## Tech Stack
 
-| Category     | Choice                                                                                                               |
-| ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Runtime      | Node.js for local/server builds, Cloudflare Workers for deployment                                                   |
-| HTTP         | [Hono](https://hono.dev/) 4.x                                                                                        |
-| OpenAPI      | [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) + [Zod](https://zod.dev/) 4 |
-| API docs UI  | [Scalar](https://scalar.com/) at `/api/doc`                                                                          |
-| LLM          | [OpenAI SDK](https://platform.openai.com/docs/libraries/node-js)                                                     |
-| GitHub       | [Octokit](https://github.com/octokit/octokit.js)                                                                     |
-| Caching      | [lru-cache](https://www.npmjs.com/package/lru-cache)                                                                 |
-| Build        | [tsup](https://tsup.egoist.dev/) → single ESM bundle `dist/index.js`                                                 |
-| Dev          | `tsx watch`                                                                                                          |
-| Tests        | [Vitest](https://vitest.dev/) 4                                                                                      |
-| Code quality | ESLint (@antfu/eslint-config), Prettier, `tsc --noEmit`                                                              |
+| Category     | Choice                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime      | Node.js for local/server builds, Cloudflare Workers for deployment                                                              |
+| HTTP         | [Hono](https://hono.dev/) 4.x                                                                                                   |
+| OpenAPI      | [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) + [Zod](https://zod.dev/) 4            |
+| API docs UI  | [Scalar](https://scalar.com/) at `/api/doc`                                                                                     |
+| LLM          | [OpenAI SDK](https://platform.openai.com/docs/libraries/node-js) or [Google Gen AI SDK](https://googleapis.github.io/js-genai/) |
+| GitHub       | [Octokit](https://github.com/octokit/octokit.js)                                                                                |
+| Caching      | [lru-cache](https://www.npmjs.com/package/lru-cache)                                                                            |
+| Build        | [tsup](https://tsup.egoist.dev/) → single ESM bundle `dist/index.js`                                                            |
+| Dev          | `tsx watch`                                                                                                                     |
+| Tests        | [Vitest](https://vitest.dev/) 4                                                                                                 |
+| Code quality | ESLint (@antfu/eslint-config), Prettier, `tsc --noEmit`                                                                         |
 
 ---
 
@@ -147,9 +149,9 @@ backend/
 │   ├── app.ts                            # CORS, logging, /api routes, OpenAPI, Scalar
 │   ├── config/
 │   │   ├── loadEnv.ts                    # Loads .env.development and .env
-│   │   ├── openai.ts                     # Lazy OpenAI client singleton
+│   │   ├── ai/                           # Lazy OpenAI/Gemini client singletons
 │   │   └── githubClient.ts               # Octokit instance
-│   ├── constants/ai.ts                   # OpenAI model defaults, structured output schema, formatting instructions
+│   ├── constants/ai.ts                   # AI defaults, structured output schema, formatting instructions
 │   ├── middleware/errorHandler.ts
 │   ├── modules/repos/
 │   │   ├── index.ts                      # Mounts search, releases, changelog routes
@@ -274,15 +276,18 @@ Copy `.env.example` to `.env` or `.env.development` (both paths are read by `loa
 
 For Cloudflare Workers local development, copy `.dev.vars.example` to `.dev.vars`.
 
-| Variable       | Description                                                           |
-| -------------- | --------------------------------------------------------------------- |
-| `PORT`         | HTTP server port (default: `3000`)                                    |
-| `FRONTEND_URL` | Allowed CORS origin (default: `http://localhost:5173`)                |
-| `OPENAI_API_KEY` | OpenAI API key (**required** for changelog formatting)              |
-| `OPENAI_MODEL`   | OpenAI model for changelog formatting (default: `gpt-5.6-terra`)    |
-| `GITHUB_TOKEN` | GitHub personal access token (recommended for higher API rate limits) |
+| Variable         | Description                                                                    |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `PORT`           | HTTP server port (default: `3000`)                                             |
+| `FRONTEND_URL`   | Allowed CORS origin (default: `http://localhost:5173`)                         |
+| `AI_PROVIDER`    | AI provider for changelog formatting: `openai` or `gemini` (default: `openai`) |
+| `OPENAI_API_KEY` | OpenAI API key (required when `AI_PROVIDER=openai`)                            |
+| `OPENAI_MODEL`   | OpenAI model for changelog formatting (default: `gpt-5.6-terra`)               |
+| `GEMINI_API_KEY` | Gemini API key (required when `AI_PROVIDER=gemini`)                            |
+| `GEMINI_MODEL`   | Gemini model for changelog formatting (default: `gemini-3.5-flash`)            |
+| `GITHUB_TOKEN`   | GitHub personal access token (recommended for higher API rate limits)          |
 
-Create `OPENAI_API_KEY` in the [OpenAI API keys dashboard](https://platform.openai.com/api-keys). Keep it server-side only: OpenAI treats API keys as secrets and recommends loading them from environment variables or a key management service, not exposing them in browser code.
+Create `OPENAI_API_KEY` in the [OpenAI API keys dashboard](https://platform.openai.com/api-keys) or `GEMINI_API_KEY` in [Google AI Studio](https://aistudio.google.com/apikey), depending on `AI_PROVIDER`. Keep provider keys server-side only.
 
 ---
 
@@ -293,8 +298,8 @@ Create `OPENAI_API_KEY` in the [OpenAI API keys dashboard](https://platform.open
 ```bash
 npm ci
 cp .env.example .env
-# Fill in OPENAI_API_KEY and optionally GITHUB_TOKEN.
-# Keep OPENAI_MODEL=gpt-5.6-terra unless you intentionally override the model.
+# Set AI_PROVIDER=openai or AI_PROVIDER=gemini.
+# Fill in the matching provider API key and optionally GITHUB_TOKEN.
 
 npm run dev
 ```
@@ -339,18 +344,20 @@ npm run deploy:staging
 npm run deploy
 ```
 
-Set `OPENAI_API_KEY` and `GITHUB_TOKEN` as Cloudflare Worker secrets, not plain vars:
+Set provider API keys and `GITHUB_TOKEN` as Cloudflare Worker secrets, not plain vars:
 
 ```bash
 npx wrangler secret put OPENAI_API_KEY --env production
+npx wrangler secret put GEMINI_API_KEY --env production
 npx wrangler secret put GITHUB_TOKEN --env production
 npx wrangler secret put OPENAI_API_KEY --env staging
+npx wrangler secret put GEMINI_API_KEY --env staging
 npx wrangler secret put GITHUB_TOKEN --env staging
 ```
 
-Update `FRONTEND_URL` in `wrangler.jsonc` for staging and production before deploying.
+Update `AI_PROVIDER`, model vars, and `FRONTEND_URL` in `wrangler.jsonc` for staging and production before deploying.
 
-If the old AI provider integration was previously deployed, remove its obsolete API key from Cloudflare and GitLab CI/CD after the OpenAI secret is in place.
+If an old AI provider integration was previously deployed, remove obsolete API keys from Cloudflare and CI/CD after the new provider secret is in place.
 
 ---
 
@@ -364,7 +371,7 @@ npm run lint        # ESLint
 npm run format      # Prettier
 ```
 
-The test suite uses **Vitest** with mocked GitHub (Octokit) and OpenAI clients — no real API calls or secrets required.
+The test suite uses **Vitest** with mocked GitHub (Octokit), OpenAI, and Gemini clients — no real API calls or secrets required.
 
 All tests live under `tests/`, mirroring the `src/` layout:
 
@@ -389,17 +396,17 @@ Shared helpers live in [`tests/helpers/testHelper.ts`](tests/helpers/testHelper.
 
 ## CI/CD
 
-**GitLab CI** (`.gitlab-ci.yml`) runs on `main`/`develop` branches and their merge requests:
+**GitHub Actions** (`.github/workflows/ci.yml`) runs on `main`/`develop` pushes and pull requests:
 
-1. **install** — `npm ci`
-2. **format** — `format`, `lint`, `type-check`
+1. **install** — `npm ci --ignore-scripts`
+2. **format** — `format:check`, ESLint, `type-check`
 3. **test** — `npm run test`
-4. **build** — artifact `dist/`
-5. **deploy** — `develop` deploys to Cloudflare staging, `main` deploys to Cloudflare production
+4. **build** — `npm run build`
+5. **deploy** — `main` deploys to Cloudflare Workers production
 
-`node_modules/` and npm cache paths are cached between jobs.
+The workflow uses GitHub's npm cache through `actions/setup-node`.
 
-Required GitLab CI/CD variables:
+Required GitHub Actions secrets:
 
 | Variable                | Description                             |
 | ----------------------- | --------------------------------------- |
@@ -408,10 +415,11 @@ Required GitLab CI/CD variables:
 
 Required Cloudflare Worker secrets:
 
-| Secret         | Description                      |
-| -------------- | -------------------------------- |
-| `OPENAI_API_KEY` | OpenAI API key                 |
-| `GITHUB_TOKEN` | GitHub token for higher API rate |
+| Secret           | Description                             |
+| ---------------- | --------------------------------------- |
+| `OPENAI_API_KEY` | OpenAI API key, if `AI_PROVIDER=openai` |
+| `GEMINI_API_KEY` | Gemini API key, if `AI_PROVIDER=gemini` |
+| `GITHUB_TOKEN`   | GitHub token for higher API rate        |
 
 ---
 
@@ -420,7 +428,7 @@ Required Cloudflare Worker secrets:
 - **GitHub only:** repository search and release data come exclusively from the GitHub API. There is no npm registry integration or natural-language query parsing.
 - **Stable releases only:** prereleases are excluded from the release list.
 - **Exact tag required:** the changelog endpoint fetches a release by tag name via `GET /repos/{owner}/{repo}/releases/tags/{tag}`. If the tag does not exist, the request fails with a 404.
-- **Input size cap:** raw release body is truncated to 30 000 characters before being sent to OpenAI.
+- **Input size cap:** raw release body is truncated to 30 000 characters before being sent to the configured AI provider.
 - **AI output validation:** model output must match the structured changelog schema and cite existing source line numbers before Markdown is rendered.
 - **In-memory cache:** cache is per-process and resets on restart. Not suitable for multi-instance deployments without a shared cache layer.
 - **GitHub rate limits:** unauthenticated requests are limited to 60 requests/hour. A `GITHUB_TOKEN` raises the limit to 5 000 requests/hour.
@@ -431,7 +439,7 @@ Required Cloudflare Worker secrets:
 
 | Repository              | Role                                                             |
 | ----------------------- | ---------------------------------------------------------------- |
-| **backend** (this repo) | Hono API: GitHub proxy + OpenAI changelog formatting             |
+| **backend** (this repo) | Hono API: GitHub proxy + OpenAI/Gemini changelog formatting      |
 | **frontend**            | React + Vite UI: repo search, release picker, Markdown rendering |
 
 The frontend communicates with the backend via `VITE_API_URL` and stores the selected `repo`, `owner`, and `tag` in the browser URL for shareable links.

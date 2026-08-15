@@ -3,6 +3,9 @@ export interface AppBindings {
     GITHUB_TOKEN?: string;
     OPENAI_API_KEY?: string;
     OPENAI_MODEL?: string;
+    GEMINI_API_KEY?: string;
+    AI_PROVIDER?: string;
+    GEMINI_MODEL?: string;
 }
 
 export interface AppEnv {
