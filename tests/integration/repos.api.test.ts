@@ -16,7 +16,7 @@ vi.mock('@/config/githubClient', () => ({
     })
 }));
 
-vi.mock('@/config/openai', () => ({
+vi.mock('@/config/ai/openai', () => ({
     openaiClient: () => ({
         responses: {
             create: createMock
