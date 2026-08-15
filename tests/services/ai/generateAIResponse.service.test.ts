@@ -1,52 +1,30 @@
-import { mockOpenAIResponse } from '@tests/helpers/testHelper';
-import { APIError } from 'openai';
-import { describe, expect, it, vi } from 'vitest';
-import { CHANGELOG_RESPONSE_FORMAT, FORMAT_CHANGELOG_INSTRUCTIONS, MAX_CHANGELOG_OUTPUT_TOKENS } from '@/constants/ai';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateAIResponse } from '@/services/ai/generateAIResponse.service';
 
-const { createMock } = vi.hoisted(() => ({
-    createMock: vi.fn()
+const { generateMock, resolveAIProviderMock } = vi.hoisted(() => ({
+    generateMock: vi.fn(),
+    resolveAIProviderMock: vi.fn()
 }));
 
-vi.mock('@/config/openai', () => ({
-    openaiClient: () => ({
-        responses: {
-            create: createMock
-        }
-    })
+vi.mock('@/services/ai/providers/resolveAIProvider', () => ({
+    resolveAIProvider: resolveAIProviderMock
 }));
 
 describe('generateAIResponse', () => {
-    it('calls OpenAI Responses API with strict changelog formatting params', async () => {
-        const response = mockOpenAIResponse('{"sections":[]}');
-        createMock.mockResolvedValueOnce(response);
-
-        const result = await generateAIResponse({
-            input: 'numbered changelog',
-            env: {
-                OPENAI_MODEL: 'gpt-5.6-luna'
-            }
-        });
-
-        expect(result).toBe('{"sections":[]}');
-        expect(createMock).toHaveBeenCalledWith({
-            model: 'gpt-5.6-luna',
-            instructions: FORMAT_CHANGELOG_INSTRUCTIONS,
-            input: 'numbered changelog',
-            reasoning: { effort: 'low' },
-            max_output_tokens: MAX_CHANGELOG_OUTPUT_TOKENS,
-            text: {
-                format: CHANGELOG_RESPONSE_FORMAT
-            }
-        });
+    beforeEach(() => {
+        generateMock.mockReset();
+        resolveAIProviderMock.mockReset();
     });
 
-    it('maps OpenAI errors to AppError', async () => {
-        createMock.mockRejectedValueOnce(new APIError(429, undefined, 'rate limited', undefined));
+    it('delegates generation to the selected AI provider', async () => {
+        generateMock.mockResolvedValueOnce('{"sections":[]}');
+        resolveAIProviderMock.mockReturnValueOnce({ generate: generateMock });
 
-        await expect(generateAIResponse({ input: 'prompt' })).rejects.toMatchObject({
-            status: 429,
-            code: 'AI_TOO_MANY_REQUESTS'
-        });
+        const env = { AI_PROVIDER: 'gemini' as const };
+        const result = await generateAIResponse({ input: 'numbered changelog', env });
+
+        expect(result).toBe('{"sections":[]}');
+        expect(resolveAIProviderMock).toHaveBeenCalledWith(env);
+        expect(generateMock).toHaveBeenCalledWith('numbered changelog', env);
     });
 });

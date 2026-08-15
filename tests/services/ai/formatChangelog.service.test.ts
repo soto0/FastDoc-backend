@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_CHANGELOG_INPUT_CHARS } from '@/constants/ai';
+import { FORMAT_CHANGELOG_INSTRUCTIONS, MAX_CHANGELOG_INPUT_CHARS } from '@/constants/ai';
 import { formatChangelog } from '@/services/ai/formatChangelog.service';
 
 const { generateAIResponseMock } = vi.hoisted(() => ({
@@ -52,7 +52,7 @@ describe('formatChangelog', () => {
         });
     });
 
-    it('returns null when OpenAI output is empty', async () => {
+    it('returns null when AI output is empty', async () => {
         generateAIResponseMock.mockResolvedValueOnce('');
 
         const result = await formatChangelog(params);
@@ -60,7 +60,7 @@ describe('formatChangelog', () => {
         expect(result).toBeNull();
     });
 
-    it('returns null when OpenAI output is not JSON', async () => {
+    it('returns null when AI output is not JSON', async () => {
         generateAIResponseMock.mockResolvedValueOnce('## Bug Fixes\n- invented markdown');
 
         const result = await formatChangelog(params);
@@ -93,7 +93,7 @@ describe('formatChangelog', () => {
         expect(result).toBeNull();
     });
 
-    it('truncates changelog to configured limit and sends stable line numbers to OpenAI', async () => {
+    it('truncates changelog to configured limit and sends stable line numbers to AI', async () => {
         const longChangelog = 'a'.repeat(MAX_CHANGELOG_INPUT_CHARS + 1000);
         generateAIResponseMock.mockResolvedValueOnce(
             JSON.stringify({
@@ -112,5 +112,12 @@ describe('formatChangelog', () => {
 
         expect(generateAIResponseCall.input).toContain(`1: ${'a'.repeat(MAX_CHANGELOG_INPUT_CHARS)}`);
         expect(generateAIResponseCall.input).not.toContain('a'.repeat(MAX_CHANGELOG_INPUT_CHARS + 1));
+    });
+
+    it('requires Russian section titles and item text in AI instructions', () => {
+        expect(FORMAT_CHANGELOG_INSTRUCTIONS).toContain('in Russian');
+        expect(FORMAT_CHANGELOG_INSTRUCTIONS).toContain('Критические изменения');
+        expect(FORMAT_CHANGELOG_INSTRUCTIONS).toContain('Новые возможности');
+        expect(FORMAT_CHANGELOG_INSTRUCTIONS).toContain('Исправления');
     });
 });
