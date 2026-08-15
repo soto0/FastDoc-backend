@@ -8,13 +8,25 @@ import { getRuntimeEnv } from '@/config/runtimeEnv';
 import { errorHandler } from '@/middleware/errorHandler.ts';
 import reposRouter from './modules/repos';
 
+const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
+
+const getAllowedOrigins = (env: AppBindings | undefined): string[] =>
+    (getRuntimeEnv(env, 'FRONTEND_URL') ?? DEFAULT_FRONTEND_URL)
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0);
+
 const app = new OpenAPIHono<AppEnv>();
 
 app.use(poweredBy());
 app.use(logger());
 app.use(
     cors({
-        origin: (_, c) => getRuntimeEnv(c.env as AppBindings | undefined, 'FRONTEND_URL') ?? 'http://localhost:5173',
+        origin: (origin, c) => {
+            const allowedOrigins = getAllowedOrigins(c.env as AppBindings | undefined);
+
+            return allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+        },
         allowHeaders: ['Content-Type'],
         allowMethods: ['GET', 'POST', 'OPTIONS']
     })

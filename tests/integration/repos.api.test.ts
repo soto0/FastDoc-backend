@@ -30,6 +30,34 @@ describe('repos API', () => {
         createMock.mockReset();
     });
 
+    it('allows CORS origins configured as comma-separated FRONTEND_URL values', async () => {
+        const res = await app.request(
+            '/api/repos/search?query=next',
+            {
+                headers: { Origin: 'https://fastdoc.pages.dev' }
+            },
+            {
+                FRONTEND_URL: 'http://localhost:5173, https://fastdoc.pages.dev'
+            }
+        );
+
+        expect(res.headers.get('access-control-allow-origin')).toBe('https://fastdoc.pages.dev');
+    });
+
+    it('does not echo disallowed CORS origins', async () => {
+        const res = await app.request(
+            '/api/repos/search?query=next',
+            {
+                headers: { Origin: 'https://unknown.example' }
+            },
+            {
+                FRONTEND_URL: 'https://fastdoc.pages.dev'
+            }
+        );
+
+        expect(res.headers.get('access-control-allow-origin')).toBe('https://fastdoc.pages.dev');
+    });
+
     describe('gET /api/repos/search', () => {
         it('returns 400 when query is too short', async () => {
             const res = await app.request('/api/repos/search?query=ab');

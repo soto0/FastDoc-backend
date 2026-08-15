@@ -266,7 +266,7 @@ curl -s "http://localhost:3000/api/repos/changelog?owner=vercel&repo=next.js&tag
 | `GET /api/documentation` | OpenAPI 3.0 JSON spec |
 | `GET /api/doc`           | Scalar interactive UI |
 
-CORS allows the origin from `FRONTEND_URL` (default `http://localhost:5173`).
+CORS allows origins from `FRONTEND_URL` (comma-separated, default `http://localhost:5173`).
 
 ---
 
@@ -279,7 +279,7 @@ For Cloudflare Workers local development, copy `.dev.vars.example` to `.dev.vars
 | Variable         | Description                                                                    |
 | ---------------- | ------------------------------------------------------------------------------ |
 | `PORT`           | HTTP server port (default: `3000`)                                             |
-| `FRONTEND_URL`   | Allowed CORS origin (default: `http://localhost:5173`)                         |
+| `FRONTEND_URL`   | Allowed CORS origins, comma-separated (default: `http://localhost:5173`)        |
 | `AI_PROVIDER`    | AI provider for changelog formatting: `openai` or `gemini` (default: `openai`) |
 | `OPENAI_API_KEY` | OpenAI API key (required when `AI_PROVIDER=openai`)                            |
 | `OPENAI_MODEL`   | OpenAI model for changelog formatting (default: `gpt-5.6-terra`)               |
